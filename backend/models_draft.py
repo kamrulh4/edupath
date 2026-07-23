@@ -1,6 +1,8 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 
 # -----------------------------------------------------------------------------
 # 1. Workspace and Case Management
@@ -24,7 +26,7 @@ class NameDescriptionBaseModel(BaseModelWithUID):
     Abstract base model with name and description fields.
     """
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     description = models.TextField(blank=True)
 
     class Meta:
@@ -34,10 +36,8 @@ class Organisation(NameDescriptionBaseModel):
     """
     Multi-tenant organisation representing a consultancy.
     """
-
-    name = models.CharField(max_length=255)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    logo = models.URLField(max_length=500, blank=True, null=True)
+    address = models.TextField(blank=True)
 
     def __str__(self):
         return self.name
@@ -104,7 +104,9 @@ class Student(BaseModelWithUID):
 
     # Privacy and Trust
     ai_processing_consent = models.BooleanField(default=False)
+    ai_processing_consent_at = models.DateTimeField(null=True, blank=True)
     communication_consent = models.BooleanField(default=False)
+    communication_consent_at = models.DateTimeField(null=True, blank=True)
 
 
     def __str__(self):
@@ -204,7 +206,10 @@ class ExtractedField(BaseModelWithUID):
 
     field_name = models.CharField(max_length=255)  # e.g. 'date_of_birth', 'grades'
     extracted_value = models.TextField()
-    confidence_score = models.CharField(max_length=20, choices=CONFIDENCE_LEVELS)
+    confidence_level = models.CharField(max_length=20, choices=CONFIDENCE_LEVELS)
+    confidence_value = models.DecimalField(
+        max_digits=4, decimal_places=3, null=True, blank=True
+    )  # raw 0-1 score from the extraction model, when available
 
     is_verified = models.BooleanField(default=False)
     reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
@@ -239,6 +244,11 @@ class Course(BaseModelWithUID):
     last_verification_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
+    # Transparency - partner-provider or commission relationships must be
+    # visible to the adviser alongside the recommendation, not hidden.
+    is_partner_provider = models.BooleanField(default=False)
+    commission_notes = models.TextField(blank=True)
+
 
 class Recommendation(BaseModelWithUID):
     """
@@ -251,10 +261,19 @@ class Recommendation(BaseModelWithUID):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
 
     rank = models.PositiveIntegerField()
+
+    # Weighted scoring - the overall match score plus a per-factor
+    # breakdown so an adviser can see exactly how the rank was produced.
+    score = models.DecimalField(max_digits=5, decimal_places=2)
+    score_breakdown = models.JSONField(default=dict, blank=True)
+    unmet_requirements = models.JSONField(default=list, blank=True)
+
     recommendation_notes = models.TextField(blank=True)
     risk_notes = models.TextField(blank=True)
     adviser_override_reason = models.TextField(blank=True)
 
+    # Denormalized for fast queries (e.g. student portal "approved courses"
+    # list); the authoritative approval record/audit trail lives on Review.
     is_approved = models.BooleanField(default=False)
 
 
@@ -271,9 +290,12 @@ class Review(BaseModelWithUID):
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="reviews")
     reviewer = models.ForeignKey(User, on_delete=models.CASCADE)
 
-    item_type = models.CharField(
-        max_length=100
-    )  # e.g., 'Recommendation', 'Application Form'
+    # Generic link to the object under review (Recommendation, ApplicationDraft,
+    # ExtractedField, ...) so a review record can point at the exact item.
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey("content_type", "object_id")
+
     status = models.CharField(
         max_length=50,
         choices=[
@@ -284,6 +306,9 @@ class Review(BaseModelWithUID):
     )
     comments = models.TextField(blank=True)
     reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["content_type", "object_id"])]
 
 
 class FormTemplate(BaseModelWithUID):
@@ -306,6 +331,8 @@ class ApplicationDraft(BaseModelWithUID):
     template = models.ForeignKey(FormTemplate, on_delete=models.SET_NULL, null=True)
     
     draft_file = models.FileField(upload_to="application_drafts/")
+    # Denormalized for fast queries; the authoritative approval record/audit
+    # trail lives on Review.
     is_approved = models.BooleanField(default=False)
     adviser_notes = models.TextField(blank=True)
 
@@ -316,9 +343,16 @@ class Meeting(BaseModelWithUID):
     Google Meet consultation sync.
     """
 
+    STATUS_CHOICES = [
+        ("SCHEDULED", "Scheduled"),
+        ("COMPLETED", "Completed"),
+        ("CANCELLED", "Cancelled"),
+    ]
+
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="meetings")
     scheduled_time = models.DateTimeField()
     meet_link = models.URLField(max_length=500, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="SCHEDULED")
 
     transcript = models.TextField(blank=True)
     ai_summary = models.TextField(blank=True)
