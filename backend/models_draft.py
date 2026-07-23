@@ -51,10 +51,10 @@ class OrganisationSettings(BaseModelWithUID):
     provider_preferences = models.JSONField(default=list, blank=True)
     scoring_weights = models.JSONField(default=dict, blank=True)
     workflow_config = models.JSONField(default=dict, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
 
-class User(AbstractUser):
+
+class User(AbstractUser, BaseModelWithUID):
     """
     Custom user model with Role-Based Access Control.
     """
