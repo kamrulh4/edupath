@@ -6,13 +6,35 @@ from django.contrib.auth.models import AbstractUser
 # 1. Workspace and Case Management
 # -----------------------------------------------------------------------------
 
+class BaseModelWithUID(models.Model):
+    """
+    Abstract base model with UUID primary key and timestamps.
+    """
 
-class Organisation(models.Model):
+    uid = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        abstract = True
+
+class NameDescriptionBaseModel(BaseModelWithUID):
+    """
+    Abstract base model with name and description fields.
+    """
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        abstract = True
+
+class Organisation(NameDescriptionBaseModel):
     """
     Multi-tenant organisation representing a consultancy.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -21,11 +43,10 @@ class Organisation(models.Model):
         return self.name
 
 
-class OrganisationSettings(models.Model):
+class OrganisationSettings(BaseModelWithUID):
     """
     Configuration for provider preferences, scoring weights, and workflows.
     """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organisation = models.OneToOneField(Organisation, on_delete=models.CASCADE, related_name="settings")
     provider_preferences = models.JSONField(default=list, blank=True)
     scoring_weights = models.JSONField(default=dict, blank=True)
@@ -54,12 +75,11 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="STUDENT")
 
 
-class Student(models.Model):
+class Student(BaseModelWithUID):
     """
     A single source of truth for student profile and information.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
@@ -86,14 +106,12 @@ class Student(models.Model):
     ai_processing_consent = models.BooleanField(default=False)
     communication_consent = models.BooleanField(default=False)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
 
 
-class Case(models.Model):
+class Case(BaseModelWithUID):
     """
     Tracks a student's journey from enquiry to application.
     """
@@ -106,15 +124,12 @@ class Case(models.Model):
         ("SUBMITTED", "Submitted"),
         ("ENROLLED", "Enrolled"),
     ]
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="cases")
     adviser = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="assigned_cases"
     )
     stage = models.CharField(max_length=50, choices=STAGE_CHOICES, default="ENQUIRY")
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Case for {self.student} - {self.get_stage_display()}"
@@ -125,7 +140,7 @@ class Case(models.Model):
 # -----------------------------------------------------------------------------
 
 
-class Document(models.Model):
+class Document(BaseModelWithUID):
     """
     Stores uploaded files and preserves original copies.
     """
@@ -153,7 +168,6 @@ class Document(models.Model):
         ("APPROVED", "Approved"),
         ("REJECTED", "Rejected"),
     ]
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="documents")
     document_category = models.CharField(
         max_length=50, choices=DOCUMENT_CATEGORIES, default="OTHER"
@@ -173,7 +187,7 @@ class Document(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
 
-class ExtractedField(models.Model):
+class ExtractedField(BaseModelWithUID):
     """
     Fields extracted from documents via AI.
     """
@@ -183,7 +197,7 @@ class ExtractedField(models.Model):
         ("MEDIUM", "Medium"),
         ("LOW", "Low"),
     ]
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
     document = models.ForeignKey(
         Document, on_delete=models.CASCADE, related_name="extracted_fields"
     )
@@ -195,7 +209,6 @@ class ExtractedField(models.Model):
     is_verified = models.BooleanField(default=False)
     reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
 
 
 # -----------------------------------------------------------------------------
@@ -203,12 +216,11 @@ class ExtractedField(models.Model):
 # -----------------------------------------------------------------------------
 
 
-class Course(models.Model):
+class Course(BaseModelWithUID):
     """
     A controlled course catalogue.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     provider_name = models.CharField(max_length=255)
     course_name = models.CharField(max_length=255)
     campus = models.CharField(max_length=255)
@@ -228,12 +240,11 @@ class Course(models.Model):
     is_active = models.BooleanField(default=True)
 
 
-class Recommendation(models.Model):
+class Recommendation(BaseModelWithUID):
     """
     Explainable course recommendation.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(
         Case, on_delete=models.CASCADE, related_name="recommendations"
     )
@@ -245,7 +256,6 @@ class Recommendation(models.Model):
     adviser_override_reason = models.TextField(blank=True)
 
     is_approved = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
 
 
 # -----------------------------------------------------------------------------
@@ -253,12 +263,11 @@ class Recommendation(models.Model):
 # -----------------------------------------------------------------------------
 
 
-class Review(models.Model):
+class Review(BaseModelWithUID):
     """
     For Human-in-the-loop approvals across the app.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="reviews")
     reviewer = models.ForeignKey(User, on_delete=models.CASCADE)
 
@@ -277,12 +286,11 @@ class Review(models.Model):
     reviewed_at = models.DateTimeField(auto_now_add=True)
 
 
-class FormTemplate(models.Model):
+class FormTemplate(BaseModelWithUID):
     """
     Application form automation mapping.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     provider_name = models.CharField(max_length=255)
     form_name = models.CharField(max_length=255)
     template_file = models.FileField(upload_to="form_templates/")
@@ -290,28 +298,24 @@ class FormTemplate(models.Model):
     is_active = models.BooleanField(default=True)
 
 
-class ApplicationDraft(models.Model):
+class ApplicationDraft(BaseModelWithUID):
     """
     Generated application form draft for adviser review.
     """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="application_drafts")
     template = models.ForeignKey(FormTemplate, on_delete=models.SET_NULL, null=True)
     
     draft_file = models.FileField(upload_to="application_drafts/")
     is_approved = models.BooleanField(default=False)
     adviser_notes = models.TextField(blank=True)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
 
-class Meeting(models.Model):
+
+class Meeting(BaseModelWithUID):
     """
     Google Meet consultation sync.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="meetings")
     scheduled_time = models.DateTimeField()
     meet_link = models.URLField(max_length=500, blank=True)
@@ -320,7 +324,6 @@ class Meeting(models.Model):
     ai_summary = models.TextField(blank=True)
     extracted_requirements = models.JSONField(default=dict, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
 
 
 # -----------------------------------------------------------------------------
@@ -328,7 +331,7 @@ class Meeting(models.Model):
 # -----------------------------------------------------------------------------
 
 
-class Task(models.Model):
+class Task(BaseModelWithUID):
     """
     Deadlines and missing document workflows.
     """
@@ -340,7 +343,6 @@ class Task(models.Model):
         ("COMPLETED", "Completed"),
         ("OVERDUE", "Overdue"),
     ]
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="tasks")
     assignee = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="assigned_tasks"
@@ -351,8 +353,6 @@ class Task(models.Model):
     due_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="PENDING")
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.title} - {self.get_status_display()}"
@@ -363,12 +363,11 @@ class Task(models.Model):
 # -----------------------------------------------------------------------------
 
 
-class Communication(models.Model):
+class Communication(BaseModelWithUID):
     """
     Messages and notices linked to a case for the student portal.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case = models.ForeignKey(
         Case, on_delete=models.CASCADE, related_name="communications"
     )
@@ -377,16 +376,13 @@ class Communication(models.Model):
     message_body = models.TextField()
     is_read = models.BooleanField(default=False)
 
-    created_at = models.DateTimeField(auto_now_add=True)
 
-
-class AuditLog(models.Model):
+class AuditLog(BaseModelWithUID):
     """
     Immutable audit trail for security and trust.
     Records uploads, edits, approvals, downloads, and sharing.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organisation = models.ForeignKey(
         Organisation, on_delete=models.CASCADE, related_name="audit_logs"
     )
@@ -404,4 +400,3 @@ class AuditLog(models.Model):
     details = models.JSONField(default=dict, blank=True)
 
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
