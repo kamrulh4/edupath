@@ -7,6 +7,7 @@ from core.serializers.organisation import (
     OrganisationSerializer,
     OrganisationSettingsSerializer,
 )
+from core.serializers.users import OrganisationMemberSerializer
 
 
 class OrganisationDetailView(StandardResponseMixin, generics.RetrieveUpdateAPIView):
@@ -30,3 +31,15 @@ class OrganisationSettingsDetailView(
             organisation=self.request.user.organisation
         )
         return settings_obj
+
+
+class OrganisationMemberListCreateView(
+    StandardResponseMixin, generics.ListCreateAPIView
+):
+    """Any org member can see the team; only the org ADMIN can add a new one."""
+
+    serializer_class = OrganisationMemberSerializer
+    permission_classes = [IsOrganisationAdminOrReadOnly]
+
+    def get_queryset(self):
+        return self.request.user.organisation.users.order_by("-id")

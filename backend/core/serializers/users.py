@@ -5,7 +5,15 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework import serializers
 
+from core.choices import UserKind
+
 User = get_user_model()
+
+ORGANISATION_MEMBER_KINDS = (
+    UserKind.ADMIN,
+    UserKind.ADVISER,
+    UserKind.ADMISSION_OFFICER,
+)
 
 
 class UserListSerializer(serializers.ModelSerializer):
@@ -103,4 +111,50 @@ class MeSerializer(serializers.ModelSerializer):
             "organisation",
             "created_at",
             "updated_at",
+        )
+
+
+class OrganisationMemberSerializer(serializers.ModelSerializer):
+    """Lets an org ADMIN add a teammate (Adviser/Admission Officer/Admin)
+    to their own organisation. The organisation itself always comes from
+    the requesting admin, never from the payload."""
+
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    class Meta:
+        model = User
+        fields = (
+            "id",
+            "uid",
+            "first_name",
+            "last_name",
+            "email",
+            "kind",
+            "password",
+            "status",
+            "created_at",
+        )
+        read_only_fields = ("id", "uid", "status", "created_at")
+
+    def validate_kind(self, value):
+        if value not in ORGANISATION_MEMBER_KINDS:
+            raise serializers.ValidationError(
+                f"Role must be one of {', '.join(ORGANISATION_MEMBER_KINDS)}."
+            )
+        return value
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def create(self, validated_data):
+        organisation = self.context["request"].user.organisation
+        return User.objects.create_user(
+            first_name=validated_data["first_name"],
+            last_name=validated_data["last_name"],
+            email=validated_data["email"],
+            password=validated_data["password"],
+            organisation=organisation,
+            kind=validated_data.get("kind", UserKind.ADVISER),
         )
