@@ -4,7 +4,11 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from common.views.mixins import StandardResponseMixin
-from core.serializers.auth import EduPathTokenObtainPairSerializer, RegisterSerializer
+from core.serializers.auth import (
+    EduPathTokenObtainPairSerializer,
+    RegisterSerializer,
+    SetPasswordSerializer,
+)
 from core.serializers.users import MeSerializer
 
 
@@ -36,3 +40,16 @@ class MeView(StandardResponseMixin, generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class SetPasswordView(StandardResponseMixin, generics.GenericAPIView):
+    """Consumes an invite link to set a first password (e.g. a newly invited student)."""
+
+    serializer_class = SetPasswordSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"message": "Password set successfully. You can now log in."})
