@@ -1,7 +1,9 @@
 """Shared response envelope builders so every endpoint returns the same shape."""
 
 
-def build_success_envelope(results, code=200, count=None, next_link=None, previous_link=None):
+def build_success_envelope(
+    results, code=200, count=None, next_link=None, previous_link=None
+):
     return {
         "success": True,
         "code": code,

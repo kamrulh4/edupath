@@ -6,7 +6,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
-from core.models import User
+from core.models import Organisation, OrganisationSettings, User
 
 
 class UserAdmin(BaseUserAdmin):
@@ -31,7 +31,7 @@ class UserAdmin(BaseUserAdmin):
                     "password",
                     "first_name",
                     "last_name",
-                    "image",
+                    "organisation",
                     "kind",
                     "gender",
                     "status",
@@ -63,7 +63,7 @@ class UserAdmin(BaseUserAdmin):
                     "password2",
                     "first_name",
                     "last_name",
-                    "image",
+                    "organisation",
                     "kind",
                     "gender",
                     "status",
@@ -77,3 +77,5 @@ class UserAdmin(BaseUserAdmin):
 
 
 admin.site.register(User, UserAdmin)
+admin.site.register(Organisation)
+admin.site.register(OrganisationSettings)

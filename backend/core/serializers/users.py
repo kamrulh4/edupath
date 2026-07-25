@@ -1,6 +1,6 @@
 """Serializer for user model."""
 
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import get_user_model
 
 from rest_framework import status
 from rest_framework import serializers
@@ -19,9 +19,9 @@ class UserListSerializer(serializers.ModelSerializer):
             "email",
             "gender",
             "kind",
-            "image",
+            "organisation",
         )
-        read_only_fields = ("id", "uid")
+        read_only_fields = ("id", "uid", "organisation")
 
 
 class UserDetailSerializer(UserListSerializer):
@@ -65,7 +65,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "phone",
             "email",
             "gender",
-            "image",
             "password",
             "confirm_password",
         )  # Fields to include in the serialization
@@ -92,50 +91,16 @@ class MeSerializer(serializers.ModelSerializer):
             "phone",
             "email",
             "gender",
-            "image",
+            "kind",
+            "organisation",
             "created_at",
             "updated_at",
         )
         read_only_fields = (
             "id",
             "uid",
+            "kind",
+            "organisation",
             "created_at",
             "updated_at",
         )
-
-
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
-    id = serializers.CharField(max_length=15, read_only=True)
-    password = serializers.CharField(
-        max_length=255,
-        write_only=True,
-        style={"input_type": "password"},
-    )
-
-    def validate(self, attrs):
-        email = attrs.get("email", None)
-        password = attrs.get("password", None)
-        if not email:
-            raise serializers.ValidationError(
-                detail="An email address is required for login",
-                code=status.HTTP_400_BAD_REQUEST,
-            )
-        if not password:
-            raise serializers.ValidationError(
-                detail="A password is requied for login",
-                code=status.HTTP_400_BAD_REQUEST,
-            )
-        user = authenticate(username=email, password=password)
-        if user is None:
-            raise serializers.ValidationError(
-                detail="Invalid Credentials", code=status.HTTP_400_BAD_REQUEST
-            )
-        if not user.is_active:
-            raise serializers.ValidationError(
-                detail="User is Inactive", code=status.HTTP_400_BAD_REQUEST
-            )
-        return {
-            "email": user.email,
-            "id": user.id,
-        }

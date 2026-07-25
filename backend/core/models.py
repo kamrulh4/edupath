@@ -10,12 +10,33 @@ from django.contrib.auth.models import (
 from django.db import models
 
 
-from common.models import BaseModelWithUID
+from common.models import BaseModelWithUID, NameDescriptionBaseModel
 
 from core.choices import (
     UserKind,
     UserGender,
 )
+
+
+class Organisation(NameDescriptionBaseModel):
+    """Multi-tenant organisation representing a consultancy."""
+
+    logo = models.URLField(max_length=500, blank=True, null=True)
+    address = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.name
+
+
+class OrganisationSettings(BaseModelWithUID):
+    """Configuration for provider preferences, scoring weights, and workflows."""
+
+    organisation = models.OneToOneField(
+        Organisation, on_delete=models.CASCADE, related_name="settings"
+    )
+    provider_preferences = models.JSONField(default=list, blank=True)
+    scoring_weights = models.JSONField(default=dict, blank=True)
+    workflow_config = models.JSONField(default=dict, blank=True)
 
 
 class UserManager(BaseUserManager):
@@ -57,6 +78,13 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, BaseModelWithUID, PermissionsMixin):
     """Users in the System"""
 
+    organisation = models.ForeignKey(
+        Organisation,
+        on_delete=models.CASCADE,
+        related_name="users",
+        null=True,
+        blank=True,
+    )
     email = models.EmailField(
         max_length=255,
         unique=True,
