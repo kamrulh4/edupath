@@ -1,6 +1,7 @@
 from django.db.models import Q
 from rest_framework import generics, status
 from rest_framework.generics import get_object_or_404
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from common.views.mixins import StandardResponseMixin
@@ -18,6 +19,7 @@ IsOrganisationStaff = HasRole(
 class StudentListCreateView(StandardResponseMixin, generics.ListCreateAPIView):
     serializer_class = StudentSerializer
     permission_classes = [IsOrganisationStaff]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         queryset = Student.objects.filter(
@@ -41,6 +43,7 @@ class StudentListCreateView(StandardResponseMixin, generics.ListCreateAPIView):
 class StudentDetailView(StandardResponseMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = StudentSerializer
     permission_classes = [IsOrganisationStaff]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     lookup_field = "uid"
 
     def get_queryset(self):

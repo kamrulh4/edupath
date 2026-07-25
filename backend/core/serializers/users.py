@@ -28,8 +28,9 @@ class UserListSerializer(serializers.ModelSerializer):
             "gender",
             "kind",
             "organisation",
+            "image",
         )
-        read_only_fields = ("id", "uid", "organisation")
+        read_only_fields = ("id", "uid", "organisation", "image")
 
 
 class UserDetailSerializer(UserListSerializer):
@@ -101,6 +102,7 @@ class MeSerializer(serializers.ModelSerializer):
             "gender",
             "kind",
             "organisation",
+            "image",
             "created_at",
             "updated_at",
         )

@@ -11,6 +11,7 @@ class StudentSerializer(serializers.ModelSerializer):
             "uid",
             "organisation",
             "user",
+            "photo",
             "first_name",
             "last_name",
             "email",

@@ -34,6 +34,7 @@ class UserAdmin(BaseUserAdmin):
                     "organisation",
                     "kind",
                     "gender",
+                    "image",
                     "status",
                 )
             },
