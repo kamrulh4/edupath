@@ -16,6 +16,7 @@ from core.choices import (
     UserKind,
     UserGender,
 )
+from core.utils import get_user_media_path_prefix
 
 
 class Organisation(NameDescriptionBaseModel):
@@ -112,11 +113,11 @@ class User(AbstractBaseUser, BaseModelWithUID, PermissionsMixin):
         choices=UserGender.choices,
         default=UserGender.UNKNOWN,
     )
-    # image = VersatileImageField(
-    #     "Profile_image",
-    #     upload_to=get_user_media_path_prefix,
-    #     blank=True,
-    # )
+    image = models.ImageField(
+        upload_to=get_user_media_path_prefix,
+        blank=True,
+        null=True,
+    )
     is_active = models.BooleanField(
         default=True,
     )

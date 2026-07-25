@@ -5,6 +5,7 @@ from django.db import models
 from common.models import BaseModelWithUID
 from core.models import Organisation, User
 from students.choices import CaseStage
+from students.utils import get_student_media_path_prefix
 
 
 class Student(BaseModelWithUID):
@@ -19,6 +20,12 @@ class Student(BaseModelWithUID):
         null=True,
         blank=True,
         related_name="student_profile",
+    )
+
+    photo = models.ImageField(
+        upload_to=get_student_media_path_prefix,
+        blank=True,
+        null=True,
     )
 
     first_name = models.CharField(max_length=255)
