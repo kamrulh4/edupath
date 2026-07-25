@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AvatarUpload } from "@/components/avatar-upload";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,24 @@ export default function StudentDetailPage() {
 		}
 	}
 
+	async function handlePhotoUpload(file: File) {
+		if (!student) return;
+		const formData = new FormData();
+		formData.append("photo", file);
+		try {
+			const { results } = await apiFetch<Student>(`/students/${student.uid}/`, {
+				method: "PATCH",
+				body: formData,
+			});
+			setStudent(results);
+			toast.success("Photo updated.");
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update photo.",
+			);
+		}
+	}
+
 	async function handleInvite() {
 		if (!student) return;
 		setInviting(true);
@@ -83,16 +102,24 @@ export default function StudentDetailPage() {
 	return (
 		<div className="flex flex-col gap-6">
 			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-semibold">
-						{student.first_name} {student.last_name}
-					</h1>
-					<Badge
-						variant={student.user ? "default" : "secondary"}
-						className="mt-1"
-					>
-						{student.user ? "Portal access active" : "No portal access yet"}
-					</Badge>
+				<div className="flex items-center gap-4">
+					<AvatarUpload
+						src={student.photo}
+						fallbackText={student.first_name.charAt(0)}
+						onUpload={handlePhotoUpload}
+						size="lg"
+					/>
+					<div>
+						<h1 className="text-2xl font-semibold">
+							{student.first_name} {student.last_name}
+						</h1>
+						<Badge
+							variant={student.user ? "default" : "secondary"}
+							className="mt-1"
+						>
+							{student.user ? "Portal access active" : "No portal access yet"}
+						</Badge>
+					</div>
 				</div>
 				{!student.user && (
 					<Button onClick={handleInvite} disabled={inviting}>

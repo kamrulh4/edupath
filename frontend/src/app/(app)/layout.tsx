@@ -3,8 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { toast } from "sonner";
+import { AvatarUpload } from "@/components/avatar-upload";
 import { Button } from "@/components/ui/button";
+import { ApiError, apiFetch } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import type { User } from "@/lib/types";
 
 const NAV_ITEMS = [
 	{ href: "/dashboard", label: "Dashboard" },
@@ -14,7 +18,7 @@ const NAV_ITEMS = [
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-	const { user, loading, logout } = useAuth();
+	const { user, loading, logout, refreshUser } = useAuth();
 	const router = useRouter();
 	const pathname = usePathname();
 
@@ -23,6 +27,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 			router.replace("/login");
 		}
 	}, [loading, user, router]);
+
+	async function handleAvatarUpload(file: File) {
+		const formData = new FormData();
+		formData.append("image", file);
+		try {
+			await apiFetch<User>("/auth/me/", { method: "PATCH", body: formData });
+			await refreshUser();
+			toast.success("Profile photo updated.");
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update photo.",
+			);
+		}
+	}
 
 	if (loading || !user) {
 		return (
@@ -58,6 +76,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						<span className="text-muted-foreground">
 							{user.first_name} · {user.kind}
 						</span>
+						<AvatarUpload
+							src={user.image}
+							fallbackText={user.first_name.charAt(0)}
+							onUpload={handleAvatarUpload}
+							size="sm"
+						/>
 						<Button variant="outline" size="sm" onClick={logout}>
 							Log out
 						</Button>

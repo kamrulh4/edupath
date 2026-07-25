@@ -16,6 +16,7 @@ export type User = {
 	gender?: string;
 	kind: UserKind;
 	organisation: number | null;
+	image: string | null;
 	status?: string;
 	created_at: string;
 	updated_at: string;
@@ -47,6 +48,7 @@ export type Student = {
 	uid: string;
 	organisation: number;
 	user: number | null;
+	photo: string | null;
 	first_name: string;
 	last_name: string;
 	email: string;

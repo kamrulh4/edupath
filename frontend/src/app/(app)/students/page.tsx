@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,8 +163,19 @@ export default function StudentsPage() {
 								<TableCell>
 									<Link
 										href={`/students/${student.uid}`}
-										className="hover:underline"
+										className="flex items-center gap-2 hover:underline"
 									>
+										<Avatar size="sm">
+											{student.photo && (
+												<AvatarImage
+													src={student.photo}
+													alt={student.first_name}
+												/>
+											)}
+											<AvatarFallback>
+												{student.first_name.charAt(0)}
+											</AvatarFallback>
+										</Avatar>
 										{student.first_name} {student.last_name}
 									</Link>
 								</TableCell>
