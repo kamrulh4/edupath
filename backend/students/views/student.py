@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import generics, status
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
@@ -19,9 +20,19 @@ class StudentListCreateView(StandardResponseMixin, generics.ListCreateAPIView):
     permission_classes = [IsOrganisationStaff]
 
     def get_queryset(self):
-        return Student.objects.filter(
+        queryset = Student.objects.filter(
             organisation=self.request.user.organisation
         ).order_by("-id")
+
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(email__icontains=search)
+            )
+
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(organisation=self.request.user.organisation)

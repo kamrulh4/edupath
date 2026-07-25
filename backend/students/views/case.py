@@ -16,9 +16,19 @@ class CaseListCreateView(StandardResponseMixin, generics.ListCreateAPIView):
     permission_classes = [IsOrganisationStaff]
 
     def get_queryset(self):
-        return Case.objects.filter(
+        queryset = Case.objects.filter(
             student__organisation=self.request.user.organisation
         ).order_by("-id")
+
+        stage = self.request.query_params.get("stage")
+        if stage:
+            queryset = queryset.filter(stage=stage)
+
+        adviser_uid = self.request.query_params.get("adviser")
+        if adviser_uid:
+            queryset = queryset.filter(adviser__uid=adviser_uid)
+
+        return queryset
 
 
 class CaseDetailView(StandardResponseMixin, generics.RetrieveUpdateDestroyAPIView):
