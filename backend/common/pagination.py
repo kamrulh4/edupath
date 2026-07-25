@@ -1,21 +1,19 @@
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
+
+from common.response import build_success_envelope
 
 
-class CustomPagination(PageNumberPagination):
+class StandardResultsPagination(PageNumberPagination):
     page_size_query_param = "page_size"
 
-
-class ListPagination(PageNumberPagination):
     def get_paginated_response(self, data):
-        from rest_framework.response import Response
-        from rest_framework import status
-
         return Response(
-            {
-                "code": status.HTTP_200_OK,
-                "next": self.get_next_link(),
-                "previous": self.get_previous_link(),
-                "count": self.page.paginator.count,
-                "results": data,
-            }
+            build_success_envelope(
+                results=data,
+                code=200,
+                count=self.page.paginator.count,
+                next_link=self.get_next_link(),
+                previous_link=self.get_previous_link(),
+            )
         )

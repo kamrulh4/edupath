@@ -111,7 +111,7 @@ WSGI_APPLICATION = "app.wsgi.application"
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 if DEBUG:
-    DATABASE_URL = os.path.join(REPO_DIR, "dev_db.sqlite3")
+    DATABASE_URL = f"sqlite:///{os.path.join(REPO_DIR, 'dev_db.sqlite3')}"
 else:
     DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -166,7 +166,7 @@ MEDIA_URL = "/media/"
 
 APPEND_SLASH = False
 
-# AUTH_USER_MODEL = "core.User"
+AUTH_USER_MODEL = "core.User"
 
 REST_AUTH = {
     "USE_JWT": True,
@@ -183,23 +183,21 @@ CORS_ALLOWED_ORIGINS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        # "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
-        # Use Customized jwt Authentication
-        "core.token_authentication.JWTAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
-    "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
     ],
     # "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_RATES": {"anon": "300/minute", "user": "1200/minute"},
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": "common.pagination.StandardResultsPagination",
+    "EXCEPTION_HANDLER": "common.exceptions.custom_exception_handler",
     "PAGE_SIZE": 40,
 }
 

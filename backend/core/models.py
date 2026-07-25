@@ -16,7 +16,6 @@ from core.choices import (
     UserKind,
     UserGender,
 )
-from core.utils import get_user_media_path_prefix
 
 
 class UserManager(BaseUserManager):
