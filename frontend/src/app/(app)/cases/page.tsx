@@ -193,6 +193,7 @@ export default function CasesPage() {
 							<TableHead>Student</TableHead>
 							<TableHead>Adviser</TableHead>
 							<TableHead>Stage</TableHead>
+							<TableHead>Documents</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -211,6 +212,14 @@ export default function CasesPage() {
 									<Badge variant="secondary">
 										{c.stage.replaceAll("_", " ")}
 									</Badge>
+								</TableCell>
+								<TableCell>
+									<Link
+										href={`/cases/${c.uid}`}
+										className="text-primary hover:underline"
+									>
+										View / upload
+									</Link>
 								</TableCell>
 							</TableRow>
 						))}

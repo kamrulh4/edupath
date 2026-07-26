@@ -86,3 +86,39 @@ export type Case = {
 	created_at: string;
 	updated_at: string;
 };
+
+export type DocumentType =
+	| "PASSPORT"
+	| "TRANSCRIPT"
+	| "O_LEVEL"
+	| "A_LEVEL"
+	| "ENGLISH_RESULT"
+	| "POLICE_CLEARANCE"
+	| "FINANCIAL"
+	| "OTHER";
+
+export type DocumentCategory =
+	| "IDENTITY"
+	| "ACADEMIC"
+	| "ENGLISH"
+	| "FINANCIAL"
+	| "OTHER";
+
+export type DocumentStatus = "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED";
+
+export type Document = {
+	id: number;
+	uid: string;
+	case: string;
+	document_category: DocumentCategory;
+	document_type: DocumentType;
+	doc_status: DocumentStatus;
+	original_file: string;
+	renamed_file: string | null;
+	quality_flags: string[];
+	is_duplicate: boolean;
+	uploaded_by: number | null;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};
