@@ -5,8 +5,8 @@ from rest_framework.response import Response
 from common.views.mixins import StandardResponseMixin
 from core.choices import UserKind
 from core.permissions import HasRole
-from documents.models import ExtractedField
-from documents.serializers.extracted_field import ExtractedFieldSerializer
+from students.models import ExtractedField
+from students.serializers.extracted_field import ExtractedFieldSerializer
 
 IsOrganisationStaff = HasRole(UserKind.ADMIN, UserKind.ADVISER, UserKind.ADMISSION_OFFICER)
 

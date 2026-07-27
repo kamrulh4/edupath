@@ -1,6 +1,6 @@
 from django.urls import path
 
-from documents.views.document import DocumentDetailView, DocumentListCreateView
+from students.views.document import DocumentDetailView, DocumentListCreateView
 
 urlpatterns = [
     path("", DocumentListCreateView.as_view(), name="document-list-create"),

@@ -1,12 +1,10 @@
 from rest_framework import serializers
 
-from documents.models import Document, ExtractedField
+from students.models import Document, ExtractedField
 
 
 class ExtractedFieldSerializer(serializers.ModelSerializer):
-    document = serializers.SlugRelatedField(
-        slug_field="uid", queryset=Document.objects.all()
-    )
+    document = serializers.SlugRelatedField(slug_field="uid", queryset=Document.objects.all())
 
     class Meta:
         model = ExtractedField
@@ -28,7 +26,5 @@ class ExtractedFieldSerializer(serializers.ModelSerializer):
     def validate_document(self, value):
         request = self.context["request"]
         if value.case.student.organisation_id != request.user.organisation_id:
-            raise serializers.ValidationError(
-                "Document does not belong to your organisation."
-            )
+            raise serializers.ValidationError("Document does not belong to your organisation.")
         return value

@@ -57,7 +57,7 @@ DJANGO_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 ]
-PROJECT_APPS = ["core", "common", "students", "documents"]
+PROJECT_APPS = ["core", "common", "students", "courses"]
 
 THIRD_PARTY_APPS = [
     "corsheaders",

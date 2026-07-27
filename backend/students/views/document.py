@@ -4,8 +4,8 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from common.views.mixins import StandardResponseMixin
 from core.choices import UserKind
 from core.permissions import HasRole
-from documents.models import Document
-from documents.serializers.document import DocumentSerializer
+from students.models import Document
+from students.serializers.document import DocumentSerializer
 
 IsOrganisationStaff = HasRole(UserKind.ADMIN, UserKind.ADVISER, UserKind.ADMISSION_OFFICER)
 
