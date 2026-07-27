@@ -122,3 +122,19 @@ export type Document = {
 	created_at: string;
 	updated_at: string;
 };
+
+export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW";
+
+export type ExtractedField = {
+	id: number;
+	uid: string;
+	document: string;
+	field_name: string;
+	extracted_value: string;
+	confidence_level: ConfidenceLevel;
+	confidence_value: string | null;
+	is_verified: boolean;
+	reviewer: number | null;
+	created_at: string;
+	updated_at: string;
+};

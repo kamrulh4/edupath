@@ -23,7 +23,10 @@ class RegisterView(StandardResponseMixin, generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return Response(MeSerializer(user).data, status=status.HTTP_201_CREATED)
+        return Response(
+            MeSerializer(user, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class LoginView(StandardResponseMixin, TokenObtainPairView):

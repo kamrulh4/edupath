@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { DocumentFieldsDialog } from "@/components/document-fields-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -206,6 +207,7 @@ export default function CaseDetailPage() {
 									<TableHead>Status</TableHead>
 									<TableHead>Flags</TableHead>
 									<TableHead>File</TableHead>
+									<TableHead>Extracted data</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -232,6 +234,12 @@ export default function CaseDetailPage() {
 											>
 												View
 											</a>
+										</TableCell>
+										<TableCell>
+											<DocumentFieldsDialog
+												documentUid={doc.uid}
+												documentLabel={DOCUMENT_TYPE_LABELS[doc.document_type]}
+											/>
 										</TableCell>
 									</TableRow>
 								))}

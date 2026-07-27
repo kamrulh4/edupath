@@ -49,7 +49,7 @@ class EduPathTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
-        data["user"] = MeSerializer(self.user).data
+        data["user"] = MeSerializer(self.user, context=self.context).data
         return data
 
 
