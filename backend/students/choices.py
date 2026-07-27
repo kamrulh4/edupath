@@ -42,6 +42,14 @@ class ConfidenceLevel(TextChoices):
     LOW = "LOW", "Low"
 
 
+class TaskStatus(TextChoices):
+    PENDING = "PENDING", "Pending"
+    IN_PROGRESS = "IN_PROGRESS", "In Progress"
+    WAITING_FOR_STUDENT = "WAITING_FOR_STUDENT", "Waiting for Student"
+    COMPLETED = "COMPLETED", "Completed"
+    OVERDUE = "OVERDUE", "Overdue"
+
+
 # A document type implies a default category - used to auto-set
 # document_category when only document_type is provided at upload time.
 DOCUMENT_TYPE_TO_CATEGORY = {

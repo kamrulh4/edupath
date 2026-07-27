@@ -41,8 +41,20 @@ import type {
 	DocumentType,
 	Recommendation,
 	Student,
+	Task,
+	TaskStatus,
 	User,
 } from "@/lib/types";
+
+const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+	PENDING: "Pending",
+	IN_PROGRESS: "In Progress",
+	WAITING_FOR_STUDENT: "Waiting for Student",
+	COMPLETED: "Completed",
+	OVERDUE: "Overdue",
+};
+
+const TASK_STATUSES = Object.keys(TASK_STATUS_LABELS) as TaskStatus[];
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 	PASSPORT: "Passport",
@@ -81,6 +93,16 @@ export default function CaseDetailPage() {
 		risk_notes: "",
 	});
 
+	const [tasks, setTasks] = useState<Task[]>([]);
+	const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+	const [creatingTask, setCreatingTask] = useState(false);
+	const [updatingTaskUid, setUpdatingTaskUid] = useState<string | null>(null);
+	const [taskForm, setTaskForm] = useState({
+		title: "",
+		description: "",
+		due_date: "",
+	});
+
 	async function loadDocuments() {
 		const { results } = await apiFetch<Document[]>(
 			`/documents/?case=${params.uid}`,
@@ -93,6 +115,11 @@ export default function CaseDetailPage() {
 			`/recommendations/?case=${params.uid}`,
 		);
 		setRecommendations(results);
+	}
+
+	async function loadTasks() {
+		const { results } = await apiFetch<Task[]>(`/tasks/?case=${params.uid}`);
+		setTasks(results);
 	}
 
 	async function load() {
@@ -113,6 +140,7 @@ export default function CaseDetailPage() {
 
 		loadDocuments();
 		loadRecommendations();
+		loadTasks();
 		apiFetch<Course[]>("/courses/?active=1").then(({ results }) =>
 			setCourses(results),
 		);
@@ -205,6 +233,50 @@ export default function CaseDetailPage() {
 			toast.error(err instanceof ApiError ? err.message : "Could not approve.");
 		} finally {
 			setApprovingUid(null);
+		}
+	}
+
+	async function handleCreateTask(e: FormEvent) {
+		e.preventDefault();
+		if (!caseData) return;
+		setCreatingTask(true);
+		try {
+			await apiFetch<Task>("/tasks/", {
+				method: "POST",
+				body: JSON.stringify({
+					case: caseData.uid,
+					title: taskForm.title,
+					description: taskForm.description,
+					due_date: taskForm.due_date || null,
+				}),
+			});
+			toast.success("Task added.");
+			setTaskForm({ title: "", description: "", due_date: "" });
+			setTaskDialogOpen(false);
+			loadTasks();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not add task.",
+			);
+		} finally {
+			setCreatingTask(false);
+		}
+	}
+
+	async function handleTaskStatusChange(task: Task, taskStatus: TaskStatus) {
+		setUpdatingTaskUid(task.uid);
+		try {
+			await apiFetch<Task>(`/tasks/${task.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ task_status: taskStatus }),
+			});
+			loadTasks();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update task.",
+			);
+		} finally {
+			setUpdatingTaskUid(null);
 		}
 	}
 
@@ -477,6 +549,106 @@ export default function CaseDetailPage() {
 														: "Approve"}
 												</Button>
 											)}
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="flex flex-row items-center justify-between">
+					<CardTitle>Tasks</CardTitle>
+					<Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+						<DialogTrigger render={<Button size="sm">Add task</Button>} />
+						<DialogContent>
+							<DialogHeader>
+								<DialogTitle>Add a task</DialogTitle>
+							</DialogHeader>
+							<form className="flex flex-col gap-4" onSubmit={handleCreateTask}>
+								<div className="flex flex-col gap-2">
+									<Label>Title</Label>
+									<Input
+										required
+										value={taskForm.title}
+										onChange={(e) =>
+											setTaskForm({ ...taskForm, title: e.target.value })
+										}
+									/>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label>Description</Label>
+									<Input
+										value={taskForm.description}
+										onChange={(e) =>
+											setTaskForm({ ...taskForm, description: e.target.value })
+										}
+									/>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label>Due date</Label>
+									<Input
+										type="date"
+										value={taskForm.due_date}
+										onChange={(e) =>
+											setTaskForm({ ...taskForm, due_date: e.target.value })
+										}
+									/>
+								</div>
+								<DialogFooter>
+									<Button type="submit" disabled={creatingTask}>
+										{creatingTask ? "Adding..." : "Add task"}
+									</Button>
+								</DialogFooter>
+							</form>
+						</DialogContent>
+					</Dialog>
+				</CardHeader>
+				<CardContent>
+					{tasks.length === 0 ? (
+						<p className="text-sm text-muted-foreground">No tasks yet.</p>
+					) : (
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>Title</TableHead>
+									<TableHead>Due date</TableHead>
+									<TableHead>Status</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{tasks.map((task) => (
+									<TableRow key={task.uid}>
+										<TableCell>{task.title}</TableCell>
+										<TableCell>{task.due_date ?? "—"}</TableCell>
+										<TableCell>
+											<Select
+												value={task.task_status}
+												onValueChange={(value) =>
+													value &&
+													handleTaskStatusChange(task, value as TaskStatus)
+												}
+											>
+												<SelectTrigger
+													className="w-48"
+													disabled={updatingTaskUid === task.uid}
+												>
+													<SelectValue>
+														{(value: TaskStatus | null) =>
+															value ? TASK_STATUS_LABELS[value] : ""
+														}
+													</SelectValue>
+												</SelectTrigger>
+												<SelectContent>
+													{TASK_STATUSES.map((s) => (
+														<SelectItem key={s} value={s}>
+															{TASK_STATUS_LABELS[s]}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
 										</TableCell>
 									</TableRow>
 								))}

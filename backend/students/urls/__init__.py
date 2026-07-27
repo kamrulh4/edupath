@@ -5,4 +5,5 @@ urlpatterns = [
     path("cases/", include("students.urls.case")),
     path("documents/", include("students.urls.document")),
     path("extracted-fields/", include("students.urls.extracted_field")),
+    path("tasks/", include("students.urls.task")),
 ]

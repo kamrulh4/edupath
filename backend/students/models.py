@@ -10,6 +10,7 @@ from students.choices import (
     DocumentCategory,
     DocumentStatus,
     DocumentType,
+    TaskStatus,
 )
 from students.utils import get_student_media_path_prefix
 
@@ -131,3 +132,26 @@ class ExtractedField(BaseModelWithUID):
 
     def __str__(self):
         return f"{self.field_name}={self.extracted_value} ({self.document})"
+
+
+class Task(BaseModelWithUID):
+    """Deadlines and missing-document follow-ups for a case."""
+
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="tasks")
+    assignee = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_tasks",
+    )
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    task_status = models.CharField(
+        max_length=50, choices=TaskStatus.choices, default=TaskStatus.PENDING
+    )
+
+    def __str__(self):
+        return f"{self.title} - {self.get_task_status_display()}"

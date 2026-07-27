@@ -180,3 +180,24 @@ export type Recommendation = {
 	created_at: string;
 	updated_at: string;
 };
+
+export type TaskStatus =
+	| "PENDING"
+	| "IN_PROGRESS"
+	| "WAITING_FOR_STUDENT"
+	| "COMPLETED"
+	| "OVERDUE";
+
+export type Task = {
+	id: number;
+	uid: string;
+	case: string;
+	assignee: string | null;
+	title: string;
+	description: string;
+	due_date: string | null;
+	task_status: TaskStatus;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};
