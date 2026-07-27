@@ -133,7 +133,11 @@ export default function CasesPage() {
 									}
 								>
 									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Select a student" />
+										<SelectValue placeholder="Select a student">
+											{(value: string | null) =>
+												value ? studentLabel(value) : "Select a student"
+											}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
 										{students.map((student) => (
@@ -153,7 +157,11 @@ export default function CasesPage() {
 									}
 								>
 									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Unassigned" />
+										<SelectValue placeholder="Unassigned">
+											{(value: string | null) =>
+												value ? adviserLabel(value) : "Unassigned"
+											}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
 										{members.map((member) => (
@@ -176,7 +184,13 @@ export default function CasesPage() {
 			<CardContent className="flex flex-col gap-4">
 				<Select value={stageFilter} onValueChange={handleStageFilterChange}>
 					<SelectTrigger className="w-56">
-						<SelectValue />
+						<SelectValue>
+							{(value: string | null) =>
+								value === "ALL" || !value
+									? "All stages"
+									: value.replaceAll("_", " ")
+							}
+						</SelectValue>
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="ALL">All stages</SelectItem>

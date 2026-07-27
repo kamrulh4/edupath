@@ -138,3 +138,45 @@ export type ExtractedField = {
 	created_at: string;
 	updated_at: string;
 };
+
+export type Course = {
+	id: number;
+	uid: string;
+	organisation: number;
+	provider_name: string;
+	course_name: string;
+	campus: string;
+	duration: string;
+	intake_dates: string[];
+	tuition_fee: string | null;
+	academic_requirements: string;
+	english_requirements: string;
+	prerequisite_requirements: string;
+	category: string;
+	source_url: string;
+	last_verification_date: string | null;
+	is_active: boolean;
+	is_partner_provider: boolean;
+	commission_notes: string;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};
+
+export type Recommendation = {
+	id: number;
+	uid: string;
+	case: string;
+	course: string;
+	rank: number;
+	score: string | null;
+	score_breakdown: Record<string, unknown>;
+	unmet_requirements: string[];
+	recommendation_notes: string;
+	risk_notes: string;
+	adviser_override_reason: string;
+	is_approved: boolean;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};
