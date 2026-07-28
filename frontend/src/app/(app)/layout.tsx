@@ -16,6 +16,7 @@ const NAV_ITEMS = [
 	{ href: "/students", label: "Students" },
 	{ href: "/cases", label: "Cases" },
 	{ href: "/courses", label: "Courses" },
+	{ href: "/templates", label: "Templates" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

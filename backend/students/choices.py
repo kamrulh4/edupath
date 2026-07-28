@@ -50,6 +50,12 @@ class TaskStatus(TextChoices):
     OVERDUE = "OVERDUE", "Overdue"
 
 
+class MeetingStatus(TextChoices):
+    SCHEDULED = "SCHEDULED", "Scheduled"
+    COMPLETED = "COMPLETED", "Completed"
+    CANCELLED = "CANCELLED", "Cancelled"
+
+
 # A document type implies a default category - used to auto-set
 # document_category when only document_type is provided at upload time.
 DOCUMENT_TYPE_TO_CATEGORY = {

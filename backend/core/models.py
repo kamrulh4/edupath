@@ -141,3 +141,30 @@ class User(AbstractBaseUser, BaseModelWithUID, PermissionsMixin):
     class Meta:
         verbose_name = "System User"
         verbose_name_plural = "System Users"
+
+
+class AuditLog(BaseModelWithUID):
+    """Immutable audit trail for security and trust.
+
+    Records uploads, edits, approvals, downloads and sharing. Written to
+    inline from the specific views that perform sensitive actions, rather
+    than a blanket middleware/signal - keeps entries meaningful instead of
+    logging every read.
+    """
+
+    organisation = models.ForeignKey(
+        Organisation, on_delete=models.CASCADE, related_name="audit_logs"
+    )
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="actions"
+    )
+
+    action_type = models.CharField(max_length=100)  # e.g. 'DOCUMENT_UPLOAD'
+    target_model = models.CharField(max_length=100)  # e.g. 'Document'
+    target_uid = models.UUIDField(null=True, blank=True)
+    details = models.JSONField(default=dict, blank=True)
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.action_type} on {self.target_model} by {self.actor}"

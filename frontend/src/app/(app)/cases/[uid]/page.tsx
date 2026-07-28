@@ -35,16 +35,28 @@ import {
 } from "@/components/ui/table";
 import { ApiError, apiFetch } from "@/lib/api-client";
 import type {
+	ApplicationDraft,
 	Case,
 	Course,
 	Document,
 	DocumentType,
+	FormTemplate,
+	Meeting,
+	MeetingStatus,
 	Recommendation,
 	Student,
 	Task,
 	TaskStatus,
 	User,
 } from "@/lib/types";
+
+const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
+	SCHEDULED: "Scheduled",
+	COMPLETED: "Completed",
+	CANCELLED: "Cancelled",
+};
+
+const MEETING_STATUSES = Object.keys(MEETING_STATUS_LABELS) as MeetingStatus[];
 
 const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
 	PENDING: "Pending",
@@ -103,6 +115,28 @@ export default function CaseDetailPage() {
 		due_date: "",
 	});
 
+	const [drafts, setDrafts] = useState<ApplicationDraft[]>([]);
+	const [templates, setTemplates] = useState<FormTemplate[]>([]);
+	const [draftDialogOpen, setDraftDialogOpen] = useState(false);
+	const [creatingDraft, setCreatingDraft] = useState(false);
+	const [approvingDraftUid, setApprovingDraftUid] = useState<string | null>(
+		null,
+	);
+	const [draftTemplate, setDraftTemplate] = useState("");
+	const [draftFile, setDraftFile] = useState<File | null>(null);
+	const [draftNotes, setDraftNotes] = useState("");
+
+	const [meetings, setMeetings] = useState<Meeting[]>([]);
+	const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
+	const [creatingMeeting, setCreatingMeeting] = useState(false);
+	const [updatingMeetingUid, setUpdatingMeetingUid] = useState<string | null>(
+		null,
+	);
+	const [meetingForm, setMeetingForm] = useState({
+		scheduled_time: "",
+		meet_link: "",
+	});
+
 	async function loadDocuments() {
 		const { results } = await apiFetch<Document[]>(
 			`/documents/?case=${params.uid}`,
@@ -120,6 +154,20 @@ export default function CaseDetailPage() {
 	async function loadTasks() {
 		const { results } = await apiFetch<Task[]>(`/tasks/?case=${params.uid}`);
 		setTasks(results);
+	}
+
+	async function loadDrafts() {
+		const { results } = await apiFetch<ApplicationDraft[]>(
+			`/application-drafts/?case=${params.uid}`,
+		);
+		setDrafts(results);
+	}
+
+	async function loadMeetings() {
+		const { results } = await apiFetch<Meeting[]>(
+			`/meetings/?case=${params.uid}`,
+		);
+		setMeetings(results);
 	}
 
 	async function load() {
@@ -141,8 +189,13 @@ export default function CaseDetailPage() {
 		loadDocuments();
 		loadRecommendations();
 		loadTasks();
+		loadDrafts();
+		loadMeetings();
 		apiFetch<Course[]>("/courses/?active=1").then(({ results }) =>
 			setCourses(results),
+		);
+		apiFetch<FormTemplate[]>("/form-templates/?active=1").then(({ results }) =>
+			setTemplates(results),
 		);
 	}
 
@@ -277,6 +330,113 @@ export default function CaseDetailPage() {
 			);
 		} finally {
 			setUpdatingTaskUid(null);
+		}
+	}
+
+	function templateLabel(uid: string | null) {
+		if (!uid) return "No template";
+		const template = templates.find((t) => t.uid === uid);
+		return template ? `${template.form_name} — ${template.provider_name}` : uid;
+	}
+
+	async function handleCreateDraft(e: FormEvent) {
+		e.preventDefault();
+		if (!draftFile || !caseData) {
+			toast.error("Choose a file first.");
+			return;
+		}
+		setCreatingDraft(true);
+		try {
+			const formData = new FormData();
+			formData.append("case", caseData.uid);
+			if (draftTemplate) formData.append("template", draftTemplate);
+			formData.append("draft_file", draftFile);
+			formData.append("adviser_notes", draftNotes);
+			await apiFetch<ApplicationDraft>("/application-drafts/", {
+				method: "POST",
+				body: formData,
+			});
+			toast.success("Draft uploaded.");
+			setDraftTemplate("");
+			setDraftFile(null);
+			setDraftNotes("");
+			setDraftDialogOpen(false);
+			loadDrafts();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not upload draft.",
+			);
+		} finally {
+			setCreatingDraft(false);
+		}
+	}
+
+	async function handleApproveDraft(draft: ApplicationDraft) {
+		setApprovingDraftUid(draft.uid);
+		try {
+			await apiFetch<ApplicationDraft>(
+				`/application-drafts/${draft.uid}/approve/`,
+				{
+					method: "POST",
+				},
+			);
+			toast.success("Draft approved.");
+			loadDrafts();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not approve draft.",
+			);
+		} finally {
+			setApprovingDraftUid(null);
+		}
+	}
+
+	async function handleCreateMeeting(e: FormEvent) {
+		e.preventDefault();
+		if (!caseData || !meetingForm.scheduled_time) {
+			toast.error("Pick a date/time.");
+			return;
+		}
+		setCreatingMeeting(true);
+		try {
+			await apiFetch<Meeting>("/meetings/", {
+				method: "POST",
+				body: JSON.stringify({
+					case: caseData.uid,
+					scheduled_time: new Date(meetingForm.scheduled_time).toISOString(),
+					meet_link: meetingForm.meet_link,
+				}),
+			});
+			toast.success("Meeting scheduled.");
+			setMeetingForm({ scheduled_time: "", meet_link: "" });
+			setMeetingDialogOpen(false);
+			loadMeetings();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not schedule meeting.",
+			);
+		} finally {
+			setCreatingMeeting(false);
+		}
+	}
+
+	async function handleMeetingStatusChange(
+		meeting: Meeting,
+		meetingStatus: MeetingStatus,
+	) {
+		setUpdatingMeetingUid(meeting.uid);
+		try {
+			await apiFetch<Meeting>(`/meetings/${meeting.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ meeting_status: meetingStatus }),
+			});
+			loadMeetings();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update meeting.",
+			);
+		} finally {
+			setUpdatingMeetingUid(null);
 		}
 	}
 
@@ -645,6 +805,239 @@ export default function CaseDetailPage() {
 													{TASK_STATUSES.map((s) => (
 														<SelectItem key={s} value={s}>
 															{TASK_STATUS_LABELS[s]}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="flex flex-row items-center justify-between">
+					<CardTitle>Application drafts</CardTitle>
+					<Dialog open={draftDialogOpen} onOpenChange={setDraftDialogOpen}>
+						<DialogTrigger render={<Button size="sm">Upload draft</Button>} />
+						<DialogContent>
+							<DialogHeader>
+								<DialogTitle>Upload an application draft</DialogTitle>
+							</DialogHeader>
+							<form
+								className="flex flex-col gap-4"
+								onSubmit={handleCreateDraft}
+							>
+								<div className="flex flex-col gap-2">
+									<Label>Template (optional)</Label>
+									<Select
+										value={draftTemplate}
+										onValueChange={(value) => setDraftTemplate(value ?? "")}
+									>
+										<SelectTrigger className="w-full">
+											<SelectValue placeholder="No template">
+												{(value: string | null) => templateLabel(value)}
+											</SelectValue>
+										</SelectTrigger>
+										<SelectContent>
+											{templates.map((template) => (
+												<SelectItem key={template.uid} value={template.uid}>
+													{template.form_name} — {template.provider_name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label>Draft file</Label>
+									<input
+										type="file"
+										required
+										onChange={(e) => setDraftFile(e.target.files?.[0] ?? null)}
+										className="text-sm"
+									/>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label>Adviser notes</Label>
+									<Input
+										value={draftNotes}
+										onChange={(e) => setDraftNotes(e.target.value)}
+									/>
+								</div>
+								<DialogFooter>
+									<Button type="submit" disabled={creatingDraft}>
+										{creatingDraft ? "Uploading..." : "Upload draft"}
+									</Button>
+								</DialogFooter>
+							</form>
+						</DialogContent>
+					</Dialog>
+				</CardHeader>
+				<CardContent>
+					{drafts.length === 0 ? (
+						<p className="text-sm text-muted-foreground">No drafts yet.</p>
+					) : (
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>Template</TableHead>
+									<TableHead>Notes</TableHead>
+									<TableHead>File</TableHead>
+									<TableHead>Status</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{drafts.map((draft) => (
+									<TableRow key={draft.uid}>
+										<TableCell>{templateLabel(draft.template)}</TableCell>
+										<TableCell className="max-w-xs truncate">
+											{draft.adviser_notes || "—"}
+										</TableCell>
+										<TableCell>
+											<a
+												href={draft.draft_file}
+												target="_blank"
+												rel="noopener noreferrer"
+												className="text-primary hover:underline"
+											>
+												View
+											</a>
+										</TableCell>
+										<TableCell>
+											{draft.is_approved ? (
+												<Badge>Approved</Badge>
+											) : (
+												<Button
+													size="sm"
+													variant="outline"
+													disabled={approvingDraftUid === draft.uid}
+													onClick={() => handleApproveDraft(draft)}
+												>
+													{approvingDraftUid === draft.uid
+														? "Approving..."
+														: "Approve"}
+												</Button>
+											)}
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="flex flex-row items-center justify-between">
+					<CardTitle>Meetings</CardTitle>
+					<Dialog open={meetingDialogOpen} onOpenChange={setMeetingDialogOpen}>
+						<DialogTrigger
+							render={<Button size="sm">Schedule meeting</Button>}
+						/>
+						<DialogContent>
+							<DialogHeader>
+								<DialogTitle>Schedule a meeting</DialogTitle>
+							</DialogHeader>
+							<form
+								className="flex flex-col gap-4"
+								onSubmit={handleCreateMeeting}
+							>
+								<div className="flex flex-col gap-2">
+									<Label>Date and time</Label>
+									<Input
+										type="datetime-local"
+										required
+										value={meetingForm.scheduled_time}
+										onChange={(e) =>
+											setMeetingForm({
+												...meetingForm,
+												scheduled_time: e.target.value,
+											})
+										}
+									/>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label>Meet link</Label>
+									<Input
+										placeholder="https://meet.google.com/..."
+										value={meetingForm.meet_link}
+										onChange={(e) =>
+											setMeetingForm({
+												...meetingForm,
+												meet_link: e.target.value,
+											})
+										}
+									/>
+								</div>
+								<DialogFooter>
+									<Button type="submit" disabled={creatingMeeting}>
+										{creatingMeeting ? "Scheduling..." : "Schedule"}
+									</Button>
+								</DialogFooter>
+							</form>
+						</DialogContent>
+					</Dialog>
+				</CardHeader>
+				<CardContent>
+					{meetings.length === 0 ? (
+						<p className="text-sm text-muted-foreground">No meetings yet.</p>
+					) : (
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>When</TableHead>
+									<TableHead>Link</TableHead>
+									<TableHead>Status</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{meetings.map((meeting) => (
+									<TableRow key={meeting.uid}>
+										<TableCell>
+											{new Date(meeting.scheduled_time).toLocaleString()}
+										</TableCell>
+										<TableCell>
+											{meeting.meet_link ? (
+												<a
+													href={meeting.meet_link}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="text-primary hover:underline"
+												>
+													Join
+												</a>
+											) : (
+												"—"
+											)}
+										</TableCell>
+										<TableCell>
+											<Select
+												value={meeting.meeting_status}
+												onValueChange={(value) =>
+													value &&
+													handleMeetingStatusChange(
+														meeting,
+														value as MeetingStatus,
+													)
+												}
+											>
+												<SelectTrigger
+													className="w-40"
+													disabled={updatingMeetingUid === meeting.uid}
+												>
+													<SelectValue>
+														{(value: MeetingStatus | null) =>
+															value ? MEETING_STATUS_LABELS[value] : ""
+														}
+													</SelectValue>
+												</SelectTrigger>
+												<SelectContent>
+													{MEETING_STATUSES.map((s) => (
+														<SelectItem key={s} value={s}>
+															{MEETING_STATUS_LABELS[s]}
 														</SelectItem>
 													))}
 												</SelectContent>

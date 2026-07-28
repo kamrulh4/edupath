@@ -201,3 +201,47 @@ export type Task = {
 	created_at: string;
 	updated_at: string;
 };
+
+export type FormTemplate = {
+	id: number;
+	uid: string;
+	organisation: number;
+	provider_name: string;
+	form_name: string;
+	template_file: string;
+	field_mapping: Record<string, unknown>;
+	is_active: boolean;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};
+
+export type ApplicationDraft = {
+	id: number;
+	uid: string;
+	case: string;
+	template: string | null;
+	draft_file: string;
+	is_approved: boolean;
+	adviser_notes: string;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};
+
+export type MeetingStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED";
+
+export type Meeting = {
+	id: number;
+	uid: string;
+	case: string;
+	scheduled_time: string;
+	meet_link: string;
+	meeting_status: MeetingStatus;
+	transcript: string;
+	ai_summary: string;
+	extracted_requirements: Record<string, unknown>;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};

@@ -1,6 +1,7 @@
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 
+from core.audit import log_action
 from students.choices import DOCUMENT_TYPE_TO_CATEGORY
 from students.models import Case, Document
 from students.utils import build_renamed_filename, hash_file
@@ -41,14 +42,18 @@ class DocumentSerializer(serializers.ModelSerializer):
     def validate_case(self, value):
         request = self.context["request"]
         if value.student.organisation_id != request.user.organisation_id:
-            raise serializers.ValidationError("Case does not belong to your organisation.")
+            raise serializers.ValidationError(
+                "Case does not belong to your organisation."
+            )
         return value
 
     def create(self, validated_data):
         request = self.context["request"]
         original_file = validated_data["original_file"]
         case = validated_data["case"]
-        document_type = validated_data.get("document_type", Document.document_type.field.default)
+        document_type = validated_data.get(
+            "document_type", Document.document_type.field.default
+        )
 
         if "document_category" not in validated_data:
             validated_data["document_category"] = DOCUMENT_TYPE_TO_CATEGORY.get(
@@ -67,6 +72,15 @@ class DocumentSerializer(serializers.ModelSerializer):
 
         renamed_name = build_renamed_filename(case, document_type, original_file.name)
         original_file.seek(0)
-        document.renamed_file.save(renamed_name, ContentFile(original_file.read()), save=True)
+        document.renamed_file.save(
+            renamed_name, ContentFile(original_file.read()), save=True
+        )
+
+        log_action(
+            request,
+            "DOCUMENT_UPLOAD",
+            document,
+            details={"document_type": document_type, "is_duplicate": is_duplicate},
+        )
 
         return document

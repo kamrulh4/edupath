@@ -10,6 +10,7 @@ from students.choices import (
     DocumentCategory,
     DocumentStatus,
     DocumentType,
+    MeetingStatus,
     TaskStatus,
 )
 from students.utils import get_student_media_path_prefix
@@ -155,3 +156,65 @@ class Task(BaseModelWithUID):
 
     def __str__(self):
         return f"{self.title} - {self.get_task_status_display()}"
+
+
+class FormTemplate(BaseModelWithUID):
+    """Application form template for a specific provider.
+
+    Auto-fill / PDF generation isn't wired up yet - field_mapping is a
+    placeholder seam for a future auto-fill engine.
+    """
+
+    organisation = models.ForeignKey(
+        Organisation, on_delete=models.CASCADE, related_name="form_templates"
+    )
+
+    provider_name = models.CharField(max_length=255)
+    form_name = models.CharField(max_length=255)
+    template_file = models.FileField(upload_to="form_templates/")
+    field_mapping = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.form_name} ({self.provider_name})"
+
+
+class ApplicationDraft(BaseModelWithUID):
+    """Generated application form draft for adviser review."""
+
+    case = models.ForeignKey(
+        Case, on_delete=models.CASCADE, related_name="application_drafts"
+    )
+    template = models.ForeignKey(
+        FormTemplate, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    draft_file = models.FileField(upload_to="application_drafts/")
+    # Denormalized for fast queries; the AuditLog has the approval trail.
+    is_approved = models.BooleanField(default=False)
+    adviser_notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Draft for {self.case}"
+
+
+class Meeting(BaseModelWithUID):
+    """Consultation meeting record.
+
+    No Google Calendar/Meet API integration yet - the meet link, transcript
+    and summary are entered manually.
+    """
+
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="meetings")
+    scheduled_time = models.DateTimeField()
+    meet_link = models.URLField(max_length=500, blank=True)
+    meeting_status = models.CharField(
+        max_length=20, choices=MeetingStatus.choices, default=MeetingStatus.SCHEDULED
+    )
+
+    transcript = models.TextField(blank=True)
+    ai_summary = models.TextField(blank=True)
+    extracted_requirements = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return f"Meeting for {self.case} at {self.scheduled_time}"

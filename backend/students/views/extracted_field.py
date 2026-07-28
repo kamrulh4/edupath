@@ -3,12 +3,15 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 
 from common.views.mixins import StandardResponseMixin
+from core.audit import log_action
 from core.choices import UserKind
 from core.permissions import HasRole
 from students.models import ExtractedField
 from students.serializers.extracted_field import ExtractedFieldSerializer
 
-IsOrganisationStaff = HasRole(UserKind.ADMIN, UserKind.ADVISER, UserKind.ADMISSION_OFFICER)
+IsOrganisationStaff = HasRole(
+    UserKind.ADMIN, UserKind.ADVISER, UserKind.ADMISSION_OFFICER
+)
 
 
 class ExtractedFieldListCreateView(StandardResponseMixin, generics.ListCreateAPIView):
@@ -31,7 +34,9 @@ class ExtractedFieldListCreateView(StandardResponseMixin, generics.ListCreateAPI
         return queryset
 
 
-class ExtractedFieldDetailView(StandardResponseMixin, generics.RetrieveUpdateDestroyAPIView):
+class ExtractedFieldDetailView(
+    StandardResponseMixin, generics.RetrieveUpdateDestroyAPIView
+):
     serializer_class = ExtractedFieldSerializer
     permission_classes = [IsOrganisationStaff]
     lookup_field = "uid"
@@ -60,5 +65,10 @@ class ExtractedFieldVerifyView(StandardResponseMixin, generics.GenericAPIView):
             field.extracted_value = extracted_value
         field.is_verified = True
         field.reviewer = request.user
-        field.save(update_fields=["extracted_value", "is_verified", "reviewer", "updated_at"])
+        field.save(
+            update_fields=["extracted_value", "is_verified", "reviewer", "updated_at"]
+        )
+        log_action(
+            request, "FIELD_VERIFIED", field, details={"field_name": field.field_name}
+        )
         return Response(self.get_serializer(field).data)

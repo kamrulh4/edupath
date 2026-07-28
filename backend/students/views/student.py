@@ -5,6 +5,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from common.views.mixins import StandardResponseMixin
+from core.audit import log_action
 from core.choices import UserKind
 from core.permissions import HasRole
 from students.models import Student
@@ -68,6 +69,7 @@ class StudentInviteView(StandardResponseMixin, generics.GenericAPIView):
         )
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
+        log_action(request, "STUDENT_INVITED", student)
         return Response(
             {
                 "message": "Student invited. Share this link with them to set a password.",
