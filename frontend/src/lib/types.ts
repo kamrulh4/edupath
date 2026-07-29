@@ -245,3 +245,15 @@ export type Meeting = {
 	created_at: string;
 	updated_at: string;
 };
+
+export type Communication = {
+	id: number;
+	uid: string;
+	case: string;
+	sender: number | null;
+	message_body: string;
+	is_read: boolean;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};

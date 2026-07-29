@@ -3,6 +3,7 @@ from django.contrib import admin
 from students.models import (
     ApplicationDraft,
     Case,
+    Communication,
     Document,
     ExtractedField,
     FormTemplate,
@@ -19,3 +20,4 @@ admin.site.register(Task)
 admin.site.register(FormTemplate)
 admin.site.register(ApplicationDraft)
 admin.site.register(Meeting)
+admin.site.register(Communication)

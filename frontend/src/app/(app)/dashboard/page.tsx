@@ -1,16 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import type {
 	Case,
+	CaseStage,
 	ExtractedField,
 	Organisation,
 	Student,
 	Task,
 } from "@/lib/types";
+
+const STAGES: CaseStage[] = [
+	"ENQUIRY",
+	"DOCUMENTS_PENDING",
+	"SHORTLISTED",
+	"PREPARED",
+	"SUBMITTED",
+	"ENROLLED",
+];
 
 export default function DashboardPage() {
 	const { user } = useAuth();
@@ -21,6 +32,9 @@ export default function DashboardPage() {
 	const [unverifiedFieldCount, setUnverifiedFieldCount] = useState<
 		number | null
 	>(null);
+	const [stageBreakdown, setStageBreakdown] = useState<Record<string, number>>(
+		{},
+	);
 
 	useEffect(() => {
 		apiFetch<Organisation>("/organisation/").then(({ results }) =>
@@ -36,6 +50,13 @@ export default function DashboardPage() {
 		apiFetch<ExtractedField[]>("/extracted-fields/?unverified=1").then(
 			({ count }) => setUnverifiedFieldCount(count),
 		);
+		Promise.all(
+			STAGES.map((stage) =>
+				apiFetch<Case[]>(`/cases/?stage=${stage}`).then(
+					({ count }) => [stage, count ?? 0] as const,
+				),
+			),
+		).then((entries) => setStageBreakdown(Object.fromEntries(entries)));
 	}, []);
 
 	return (
@@ -90,6 +111,20 @@ export default function DashboardPage() {
 					</CardContent>
 				</Card>
 			</div>
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-sm text-muted-foreground">
+						Cases by stage
+					</CardTitle>
+				</CardHeader>
+				<CardContent className="flex flex-wrap gap-2">
+					{STAGES.map((stage) => (
+						<Badge key={stage} variant="secondary">
+							{stage.replaceAll("_", " ")}: {stageBreakdown[stage] ?? "..."}
+						</Badge>
+					))}
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

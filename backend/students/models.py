@@ -218,3 +218,16 @@ class Meeting(BaseModelWithUID):
 
     def __str__(self):
         return f"Meeting for {self.case} at {self.scheduled_time}"
+
+
+class Communication(BaseModelWithUID):
+    """Messages and notices linked to a case, visible in the student portal."""
+
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="communications")
+    sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    message_body = models.TextField()
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Message on {self.case} from {self.sender}"

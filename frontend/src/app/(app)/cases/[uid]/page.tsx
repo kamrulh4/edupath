@@ -37,6 +37,7 @@ import { ApiError, apiFetch } from "@/lib/api-client";
 import type {
 	ApplicationDraft,
 	Case,
+	Communication,
 	Course,
 	Document,
 	DocumentType,
@@ -137,6 +138,10 @@ export default function CaseDetailPage() {
 		meet_link: "",
 	});
 
+	const [messages, setMessages] = useState<Communication[]>([]);
+	const [sendingMessage, setSendingMessage] = useState(false);
+	const [messageBody, setMessageBody] = useState("");
+
 	async function loadDocuments() {
 		const { results } = await apiFetch<Document[]>(
 			`/documents/?case=${params.uid}`,
@@ -170,6 +175,13 @@ export default function CaseDetailPage() {
 		setMeetings(results);
 	}
 
+	async function loadMessages() {
+		const { results } = await apiFetch<Communication[]>(
+			`/communications/?case=${params.uid}`,
+		);
+		setMessages(results);
+	}
+
 	async function load() {
 		const { results: theCase } = await apiFetch<Case>(`/cases/${params.uid}/`);
 		setCaseData(theCase);
@@ -191,6 +203,7 @@ export default function CaseDetailPage() {
 		loadTasks();
 		loadDrafts();
 		loadMeetings();
+		loadMessages();
 		apiFetch<Course[]>("/courses/?active=1").then(({ results }) =>
 			setCourses(results),
 		);
@@ -437,6 +450,26 @@ export default function CaseDetailPage() {
 			);
 		} finally {
 			setUpdatingMeetingUid(null);
+		}
+	}
+
+	async function handleSendMessage(e: FormEvent) {
+		e.preventDefault();
+		if (!caseData || !messageBody.trim()) return;
+		setSendingMessage(true);
+		try {
+			await apiFetch<Communication>("/communications/", {
+				method: "POST",
+				body: JSON.stringify({ case: caseData.uid, message_body: messageBody }),
+			});
+			setMessageBody("");
+			loadMessages();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not send message.",
+			);
+		} finally {
+			setSendingMessage(false);
 		}
 	}
 
@@ -1048,6 +1081,47 @@ export default function CaseDetailPage() {
 							</TableBody>
 						</Table>
 					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Messages</CardTitle>
+				</CardHeader>
+				<CardContent className="flex flex-col gap-4">
+					{messages.length === 0 ? (
+						<p className="text-sm text-muted-foreground">No messages yet.</p>
+					) : (
+						<div className="flex flex-col gap-3">
+							{messages.map((message) => (
+								<div
+									key={message.uid}
+									className="flex flex-col gap-1 rounded-lg border p-3"
+								>
+									<div className="flex items-center justify-between text-xs text-muted-foreground">
+										<span>{new Date(message.created_at).toLocaleString()}</span>
+										{!message.is_read && (
+											<Badge variant="secondary">Unread</Badge>
+										)}
+									</div>
+									<p className="text-sm">{message.message_body}</p>
+								</div>
+							))}
+						</div>
+					)}
+					<form className="flex gap-2" onSubmit={handleSendMessage}>
+						<Input
+							placeholder="Write a message..."
+							value={messageBody}
+							onChange={(e) => setMessageBody(e.target.value)}
+						/>
+						<Button
+							type="submit"
+							disabled={sendingMessage || !messageBody.trim()}
+						>
+							{sendingMessage ? "Sending..." : "Send"}
+						</Button>
+					</form>
 				</CardContent>
 			</Card>
 		</div>

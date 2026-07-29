@@ -47,19 +47,23 @@ export default function CasesPage() {
 	const [students, setStudents] = useState<Student[]>([]);
 	const [members, setMembers] = useState<User[]>([]);
 	const [stageFilter, setStageFilter] = useState<string>("ALL");
+	const [adviserFilter, setAdviserFilter] = useState<string>("ALL");
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [creating, setCreating] = useState(false);
 	const [form, setForm] = useState({ student: "", adviser: "" });
 
-	async function loadCases(stage: string) {
-		const suffix = stage !== "ALL" ? `?stage=${stage}` : "";
+	async function loadCases(stage: string, adviser: string) {
+		const params = new URLSearchParams();
+		if (stage !== "ALL") params.set("stage", stage);
+		if (adviser !== "ALL") params.set("adviser", adviser);
+		const suffix = params.toString() ? `?${params.toString()}` : "";
 		const { results } = await apiFetch<Case[]>(`/cases/${suffix}`);
 		setCases(results);
 	}
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount only
 	useEffect(() => {
-		loadCases(stageFilter);
+		loadCases(stageFilter, adviserFilter);
 		apiFetch<Student[]>("/students/").then(({ results }) =>
 			setStudents(results),
 		);
@@ -82,7 +86,13 @@ export default function CasesPage() {
 	async function handleStageFilterChange(value: string | null) {
 		const stage = value ?? "ALL";
 		setStageFilter(stage);
-		loadCases(stage);
+		loadCases(stage, adviserFilter);
+	}
+
+	async function handleAdviserFilterChange(value: string | null) {
+		const adviser = value ?? "ALL";
+		setAdviserFilter(adviser);
+		loadCases(stageFilter, adviser);
 	}
 
 	async function handleCreate(e: FormEvent) {
@@ -103,7 +113,7 @@ export default function CasesPage() {
 			toast.success("Case created.");
 			setForm({ student: "", adviser: "" });
 			setDialogOpen(false);
-			loadCases(stageFilter);
+			loadCases(stageFilter, adviserFilter);
 		} catch (err) {
 			toast.error(
 				err instanceof ApiError ? err.message : "Could not create case.",
@@ -182,25 +192,49 @@ export default function CasesPage() {
 				</Dialog>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
-				<Select value={stageFilter} onValueChange={handleStageFilterChange}>
-					<SelectTrigger className="w-56">
-						<SelectValue>
-							{(value: string | null) =>
-								value === "ALL" || !value
-									? "All stages"
-									: value.replaceAll("_", " ")
-							}
-						</SelectValue>
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="ALL">All stages</SelectItem>
-						{STAGES.map((stage) => (
-							<SelectItem key={stage} value={stage}>
-								{stage.replaceAll("_", " ")}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<div className="flex gap-2">
+					<Select value={stageFilter} onValueChange={handleStageFilterChange}>
+						<SelectTrigger className="w-56">
+							<SelectValue>
+								{(value: string | null) =>
+									value === "ALL" || !value
+										? "All stages"
+										: value.replaceAll("_", " ")
+								}
+							</SelectValue>
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="ALL">All stages</SelectItem>
+							{STAGES.map((stage) => (
+								<SelectItem key={stage} value={stage}>
+									{stage.replaceAll("_", " ")}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<Select
+						value={adviserFilter}
+						onValueChange={handleAdviserFilterChange}
+					>
+						<SelectTrigger className="w-56">
+							<SelectValue>
+								{(value: string | null) =>
+									value === "ALL" || !value
+										? "All advisers"
+										: adviserLabel(value)
+								}
+							</SelectValue>
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="ALL">All advisers</SelectItem>
+							{members.map((member) => (
+								<SelectItem key={member.uid} value={member.uid}>
+									{member.first_name} {member.last_name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
 				<Table>
 					<TableHeader>
 						<TableRow>

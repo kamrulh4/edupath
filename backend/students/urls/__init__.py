@@ -9,4 +9,5 @@ urlpatterns = [
     path("form-templates/", include("students.urls.form_template")),
     path("application-drafts/", include("students.urls.application_draft")),
     path("meetings/", include("students.urls.meeting")),
+    path("communications/", include("students.urls.communication")),
 ]
