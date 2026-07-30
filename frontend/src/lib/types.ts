@@ -181,6 +181,22 @@ export type Recommendation = {
 	updated_at: string;
 };
 
+export type PortalCourse = Pick<
+	Course,
+	| "uid"
+	| "provider_name"
+	| "course_name"
+	| "campus"
+	| "duration"
+	| "intake_dates"
+	| "tuition_fee"
+	| "category"
+>;
+
+export type PortalRecommendation = Omit<Recommendation, "course"> & {
+	course: PortalCourse;
+};
+
 export type TaskStatus =
 	| "PENDING"
 	| "IN_PROGRESS"

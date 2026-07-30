@@ -28,8 +28,8 @@ export default function LoginPage() {
 		e.preventDefault();
 		setSubmitting(true);
 		try {
-			await login(email, password);
-			router.push("/dashboard");
+			const loggedInUser = await login(email, password);
+			router.push(loggedInUser.kind === "STUDENT" ? "/portal" : "/dashboard");
 		} catch (err) {
 			toast.error(err instanceof ApiError ? err.message : "Login failed.");
 		} finally {

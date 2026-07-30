@@ -15,7 +15,7 @@ type LoginResult = { access: string; refresh: string; user: User };
 type AuthContextValue = {
 	user: User | null;
 	loading: boolean;
-	login: (email: string, password: string) => Promise<void>;
+	login: (email: string, password: string) => Promise<User>;
 	logout: () => void;
 	refreshUser: () => Promise<void>;
 };
@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		});
 		setTokens(results.access, results.refresh);
 		setUser(results.user);
+		return results.user;
 	}
 
 	function logout() {

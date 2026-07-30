@@ -3,24 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { toast } from "sonner";
-import { AvatarUpload } from "@/components/avatar-upload";
 import { Button } from "@/components/ui/button";
-import { ApiError, apiFetch } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { User } from "@/lib/types";
 
 const NAV_ITEMS = [
-	{ href: "/dashboard", label: "Dashboard" },
-	{ href: "/organisation", label: "Organisation" },
-	{ href: "/students", label: "Students" },
-	{ href: "/cases", label: "Cases" },
-	{ href: "/courses", label: "Courses" },
-	{ href: "/templates", label: "Templates" },
+	{ href: "/portal", label: "Overview" },
+	{ href: "/portal/documents", label: "Documents" },
+	{ href: "/portal/recommendations", label: "Offers" },
+	{ href: "/portal/messages", label: "Messages" },
 ];
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-	const { user, loading, logout, refreshUser } = useAuth();
+export default function PortalLayout({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
+	const { user, loading, logout } = useAuth();
 	const router = useRouter();
 	const pathname = usePathname();
 
@@ -28,26 +26,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 		if (loading) return;
 		if (!user) {
 			router.replace("/login");
-		} else if (user.kind === "STUDENT") {
-			router.replace("/portal");
+		} else if (user.kind !== "STUDENT") {
+			router.replace("/dashboard");
 		}
 	}, [loading, user, router]);
 
-	async function handleAvatarUpload(file: File) {
-		const formData = new FormData();
-		formData.append("image", file);
-		try {
-			await apiFetch<User>("/auth/me/", { method: "PATCH", body: formData });
-			await refreshUser();
-			toast.success("Profile photo updated.");
-		} catch (err) {
-			toast.error(
-				err instanceof ApiError ? err.message : "Could not update photo.",
-			);
-		}
-	}
-
-	if (loading || !user || user.kind === "STUDENT") {
+	if (loading || !user || user.kind !== "STUDENT") {
 		return (
 			<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
 				Loading...
@@ -60,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 			<header className="border-b">
 				<div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
 					<div className="flex items-center gap-6">
-						<span className="font-semibold">EduPath AI</span>
+						<span className="font-semibold">EduPath AI · Student Portal</span>
 						<nav className="flex items-center gap-4 text-sm">
 							{NAV_ITEMS.map((item) => (
 								<Link
@@ -79,14 +63,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 					</div>
 					<div className="flex items-center gap-3 text-sm">
 						<span className="text-muted-foreground">
-							{user.first_name} · {user.kind}
+							{user.first_name} {user.last_name}
 						</span>
-						<AvatarUpload
-							src={user.image}
-							fallbackText={user.first_name.charAt(0)}
-							onUpload={handleAvatarUpload}
-							size="sm"
-						/>
 						<Button variant="outline" size="sm" onClick={logout}>
 							Log out
 						</Button>
