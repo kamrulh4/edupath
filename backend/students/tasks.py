@@ -7,6 +7,7 @@ from students.choices import DocumentStatus
 from students.models import Document, ExtractedField
 from students.services.document_extraction import (
     DocumentExtractionError,
+    UnsupportedDocumentTypeError,
     extract_fields_from_document,
 )
 
@@ -25,13 +26,19 @@ def extract_document_fields(self, document_id):
 
     try:
         fields = extract_fields_from_document(document)
+    except UnsupportedDocumentTypeError as exc:
+        logger.warning(
+            "Unsupported file type for document %s: %s", document_id, exc
+        )
+        _flag_extraction_failure(document, "AI_UNSUPPORTED_FILE_TYPE")
+        return
     except DocumentExtractionError as exc:
         logger.warning(
             "Gemini extraction failed for document %s: %s", document_id, exc
         )
         if self.request.retries < self.max_retries:
             raise self.retry(exc=exc)
-        _flag_extraction_failure(document)
+        _flag_extraction_failure(document, "AI_EXTRACTION_FAILED")
         return
 
     with transaction.atomic():
@@ -52,7 +59,7 @@ def extract_document_fields(self, document_id):
             document.save(update_fields=["doc_status", "updated_at"])
 
 
-def _flag_extraction_failure(document):
-    if "AI_EXTRACTION_FAILED" not in document.quality_flags:
-        document.quality_flags = [*document.quality_flags, "AI_EXTRACTION_FAILED"]
+def _flag_extraction_failure(document, flag):
+    if flag not in document.quality_flags:
+        document.quality_flags = [*document.quality_flags, flag]
         document.save(update_fields=["quality_flags", "updated_at"])

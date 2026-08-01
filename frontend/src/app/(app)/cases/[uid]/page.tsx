@@ -540,6 +540,7 @@ export default function CaseDetailPage() {
 									<input
 										type="file"
 										required
+										accept=".pdf,.jpg,.jpeg,.png,.webp,.docx"
 										onChange={(e) => setFile(e.target.files?.[0] ?? null)}
 										className="text-sm"
 									/>
