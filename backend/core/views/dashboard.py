@@ -48,7 +48,7 @@ class DashboardReportingView(StandardResponseMixin, generics.GenericAPIView):
         upcoming_tasks = (
             Task.objects.filter(
                 case__student__organisation=organisation,
-                task_status__in=OPEN_TASK_STATUSES,
+                task_status__in=[*OPEN_TASK_STATUSES, TaskStatus.OVERDUE],
                 due_date__isnull=False,
                 due_date__lte=deadline_cutoff,
             )

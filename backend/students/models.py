@@ -153,6 +153,7 @@ class Task(BaseModelWithUID):
     task_status = models.CharField(
         max_length=50, choices=TaskStatus.choices, default=TaskStatus.PENDING
     )
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.title} - {self.get_task_status_display()}"
@@ -193,6 +194,9 @@ class ApplicationDraft(BaseModelWithUID):
     # Denormalized for fast queries; the AuditLog has the approval trail.
     is_approved = models.BooleanField(default=False)
     adviser_notes = models.TextField(blank=True)
+    # Form fields the auto-fill engine couldn't populate (no mapping or no
+    # data) - empty for manually-uploaded drafts.
+    missing_fields = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return f"Draft for {self.case}"

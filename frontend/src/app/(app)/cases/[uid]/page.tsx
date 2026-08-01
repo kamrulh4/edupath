@@ -116,6 +116,7 @@ export default function CaseDetailPage() {
 	const [recDialogOpen, setRecDialogOpen] = useState(false);
 	const [creatingRec, setCreatingRec] = useState(false);
 	const [approvingUid, setApprovingUid] = useState<string | null>(null);
+	const [generatingRecs, setGeneratingRecs] = useState(false);
 	const [recForm, setRecForm] = useState({
 		course: "",
 		rank: "1",
@@ -138,6 +139,7 @@ export default function CaseDetailPage() {
 	const [templates, setTemplates] = useState<FormTemplate[]>([]);
 	const [draftDialogOpen, setDraftDialogOpen] = useState(false);
 	const [creatingDraft, setCreatingDraft] = useState(false);
+	const [generatingDraft, setGeneratingDraft] = useState(false);
 	const [approvingDraftUid, setApprovingDraftUid] = useState<string | null>(
 		null,
 	);
@@ -347,6 +349,27 @@ export default function CaseDetailPage() {
 		}
 	}
 
+	async function handleGenerateRecommendations() {
+		if (!caseData) return;
+		setGeneratingRecs(true);
+		try {
+			await apiFetch<Recommendation[]>("/recommendations/generate/", {
+				method: "POST",
+				body: JSON.stringify({ case: caseData.uid }),
+			});
+			toast.success("Recommendations generated.");
+			loadRecommendations();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError
+					? err.message
+					: "Could not generate recommendations.",
+			);
+		} finally {
+			setGeneratingRecs(false);
+		}
+	}
+
 	async function handleCreateTask(e: FormEvent) {
 		e.preventDefault();
 		if (!caseData) return;
@@ -426,6 +449,39 @@ export default function CaseDetailPage() {
 			);
 		} finally {
 			setCreatingDraft(false);
+		}
+	}
+
+	async function handleGenerateDraft() {
+		if (!caseData || !draftTemplate) {
+			toast.error("Select a template first.");
+			return;
+		}
+		setGeneratingDraft(true);
+		try {
+			const { results } = await apiFetch<ApplicationDraft>(
+				"/application-drafts/generate/",
+				{
+					method: "POST",
+					body: JSON.stringify({ case: caseData.uid, template: draftTemplate }),
+				},
+			);
+			if (results.missing_fields.length > 0) {
+				toast.warning(
+					`Draft generated - ${results.missing_fields.length} field(s) need manual entry: ${results.missing_fields.join(", ")}`,
+				);
+			} else {
+				toast.success("Draft generated - all fields filled.");
+			}
+			setDraftTemplate("");
+			setDraftDialogOpen(false);
+			loadDrafts();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not generate draft.",
+			);
+		} finally {
+			setGeneratingDraft(false);
 		}
 	}
 
@@ -674,95 +730,105 @@ export default function CaseDetailPage() {
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between">
 					<CardTitle>Recommendations</CardTitle>
-					<Dialog open={recDialogOpen} onOpenChange={setRecDialogOpen}>
-						<DialogTrigger
-							render={<Button size="sm">Add recommendation</Button>}
-						/>
-						<DialogContent className="sm:max-w-lg">
-							<DialogHeader>
-								<DialogTitle>Recommend a course</DialogTitle>
-							</DialogHeader>
-							<form
-								className="flex flex-col gap-4"
-								onSubmit={handleCreateRecommendation}
-							>
-								<div className="flex flex-col gap-2">
-									<Label>Course</Label>
-									<Select
-										value={recForm.course}
-										onValueChange={(value) =>
-											setRecForm({ ...recForm, course: value ?? "" })
-										}
-									>
-										<SelectTrigger className="w-full">
-											<SelectValue placeholder="Select a course">
-												{(value: string | null) =>
-													value ? courseLabel(value) : "Select a course"
+					<div className="flex items-center gap-2">
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={generatingRecs}
+							onClick={handleGenerateRecommendations}
+						>
+							{generatingRecs ? "Generating..." : "Auto-generate top 10"}
+						</Button>
+						<Dialog open={recDialogOpen} onOpenChange={setRecDialogOpen}>
+							<DialogTrigger
+								render={<Button size="sm">Add recommendation</Button>}
+							/>
+							<DialogContent className="sm:max-w-lg">
+								<DialogHeader>
+									<DialogTitle>Recommend a course</DialogTitle>
+								</DialogHeader>
+								<form
+									className="flex flex-col gap-4"
+									onSubmit={handleCreateRecommendation}
+								>
+									<div className="flex flex-col gap-2">
+										<Label>Course</Label>
+										<Select
+											value={recForm.course}
+											onValueChange={(value) =>
+												setRecForm({ ...recForm, course: value ?? "" })
+											}
+										>
+											<SelectTrigger className="w-full">
+												<SelectValue placeholder="Select a course">
+													{(value: string | null) =>
+														value ? courseLabel(value) : "Select a course"
+													}
+												</SelectValue>
+											</SelectTrigger>
+											<SelectContent>
+												{courses.map((course) => (
+													<SelectItem key={course.uid} value={course.uid}>
+														{course.course_name} — {course.provider_name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+									<div className="grid grid-cols-2 gap-4">
+										<div className="flex flex-col gap-2">
+											<Label>Rank</Label>
+											<Input
+												type="number"
+												min="1"
+												value={recForm.rank}
+												onChange={(e) =>
+													setRecForm({ ...recForm, rank: e.target.value })
 												}
-											</SelectValue>
-										</SelectTrigger>
-										<SelectContent>
-											{courses.map((course) => (
-												<SelectItem key={course.uid} value={course.uid}>
-													{course.course_name} — {course.provider_name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-								<div className="grid grid-cols-2 gap-4">
+											/>
+										</div>
+										<div className="flex flex-col gap-2">
+											<Label>Score (0-100, optional)</Label>
+											<Input
+												type="number"
+												step="0.01"
+												value={recForm.score}
+												onChange={(e) =>
+													setRecForm({ ...recForm, score: e.target.value })
+												}
+											/>
+										</div>
+									</div>
 									<div className="flex flex-col gap-2">
-										<Label>Rank</Label>
+										<Label>Recommendation notes</Label>
 										<Input
-											type="number"
-											min="1"
-											value={recForm.rank}
+											value={recForm.recommendation_notes}
 											onChange={(e) =>
-												setRecForm({ ...recForm, rank: e.target.value })
+												setRecForm({
+													...recForm,
+													recommendation_notes: e.target.value,
+												})
 											}
 										/>
 									</div>
 									<div className="flex flex-col gap-2">
-										<Label>Score (0-100, optional)</Label>
+										<Label>Risk notes</Label>
 										<Input
-											type="number"
-											step="0.01"
-											value={recForm.score}
+											value={recForm.risk_notes}
 											onChange={(e) =>
-												setRecForm({ ...recForm, score: e.target.value })
+												setRecForm({ ...recForm, risk_notes: e.target.value })
 											}
 										/>
 									</div>
-								</div>
-								<div className="flex flex-col gap-2">
-									<Label>Recommendation notes</Label>
-									<Input
-										value={recForm.recommendation_notes}
-										onChange={(e) =>
-											setRecForm({
-												...recForm,
-												recommendation_notes: e.target.value,
-											})
-										}
-									/>
-								</div>
-								<div className="flex flex-col gap-2">
-									<Label>Risk notes</Label>
-									<Input
-										value={recForm.risk_notes}
-										onChange={(e) =>
-											setRecForm({ ...recForm, risk_notes: e.target.value })
-										}
-									/>
-								</div>
-								<DialogFooter>
-									<Button type="submit" disabled={creatingRec}>
-										{creatingRec ? "Adding..." : "Add recommendation"}
-									</Button>
-								</DialogFooter>
-							</form>
-						</DialogContent>
-					</Dialog>
+									<DialogFooter>
+										<Button type="submit" disabled={creatingRec}>
+											{creatingRec ? "Adding..." : "Add recommendation"}
+										</Button>
+									</DialogFooter>
+								</form>
+							</DialogContent>
+						</Dialog>
+					</div>
 				</CardHeader>
 				<CardContent>
 					{recommendations.length === 0 ? (
@@ -777,6 +843,7 @@ export default function CaseDetailPage() {
 									<TableHead>Course</TableHead>
 									<TableHead>Score</TableHead>
 									<TableHead>Notes</TableHead>
+									<TableHead>Requirements &amp; risks</TableHead>
 									<TableHead>Status</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -786,8 +853,32 @@ export default function CaseDetailPage() {
 										<TableCell>#{rec.rank}</TableCell>
 										<TableCell>{courseLabel(rec.course)}</TableCell>
 										<TableCell>{rec.score ?? "—"}</TableCell>
-										<TableCell className="max-w-xs truncate">
+										<TableCell
+											className="max-w-xs truncate"
+											title={rec.recommendation_notes}
+										>
 											{rec.recommendation_notes || "—"}
+										</TableCell>
+										<TableCell className="max-w-xs">
+											<div className="flex flex-col gap-1">
+												{rec.unmet_requirements.map((req) => (
+													<Badge
+														key={req}
+														variant="destructive"
+														className="w-fit"
+													>
+														{req}
+													</Badge>
+												))}
+												{rec.risk_notes && (
+													<span
+														className="truncate text-xs text-muted-foreground"
+														title={rec.risk_notes}
+													>
+														{rec.risk_notes}
+													</span>
+												)}
+											</div>
 										</TableCell>
 										<TableCell>
 											{rec.is_approved ? (
@@ -927,7 +1018,7 @@ export default function CaseDetailPage() {
 								onSubmit={handleCreateDraft}
 							>
 								<div className="flex flex-col gap-2">
-									<Label>Template (optional)</Label>
+									<Label>Template</Label>
 									<Select
 										value={draftTemplate}
 										onValueChange={(value) => setDraftTemplate(value ?? "")}
@@ -945,12 +1036,26 @@ export default function CaseDetailPage() {
 											))}
 										</SelectContent>
 									</Select>
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										className="w-fit"
+										disabled={!draftTemplate || generatingDraft}
+										onClick={handleGenerateDraft}
+									>
+										{generatingDraft
+											? "Generating..."
+											: "Auto-fill from student profile"}
+									</Button>
 								</div>
+								<p className="text-xs text-muted-foreground">
+									Or upload a draft file manually instead:
+								</p>
 								<div className="flex flex-col gap-2">
 									<Label>Draft file</Label>
 									<input
 										type="file"
-										required
 										onChange={(e) => setDraftFile(e.target.files?.[0] ?? null)}
 										className="text-sm"
 									/>
@@ -963,7 +1068,7 @@ export default function CaseDetailPage() {
 									/>
 								</div>
 								<DialogFooter>
-									<Button type="submit" disabled={creatingDraft}>
+									<Button type="submit" disabled={creatingDraft || !draftFile}>
 										{creatingDraft ? "Uploading..." : "Upload draft"}
 									</Button>
 								</DialogFooter>
@@ -980,6 +1085,7 @@ export default function CaseDetailPage() {
 								<TableRow>
 									<TableHead>Template</TableHead>
 									<TableHead>Notes</TableHead>
+									<TableHead>Missing fields</TableHead>
 									<TableHead>File</TableHead>
 									<TableHead>Status</TableHead>
 								</TableRow>
@@ -990,6 +1096,19 @@ export default function CaseDetailPage() {
 										<TableCell>{templateLabel(draft.template)}</TableCell>
 										<TableCell className="max-w-xs truncate">
 											{draft.adviser_notes || "—"}
+										</TableCell>
+										<TableCell className="max-w-xs">
+											{draft.missing_fields.length === 0 ? (
+												"—"
+											) : (
+												<div className="flex flex-wrap gap-1">
+													{draft.missing_fields.map((field) => (
+														<Badge key={field} variant="destructive">
+															{field}
+														</Badge>
+													))}
+												</div>
+											)}
 										</TableCell>
 										<TableCell>
 											<a

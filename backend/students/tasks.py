@@ -1,11 +1,19 @@
 import logging
+from datetime import timedelta
 
 from celery import shared_task
 from django.core.files.base import ContentFile
+from django.core.mail import send_mail
 from django.db import transaction
+from django.utils import timezone
 
-from students.choices import DOCUMENT_TYPE_TO_CATEGORY, DocumentStatus, DocumentType
-from students.models import Document, ExtractedField
+from students.choices import (
+    DOCUMENT_TYPE_TO_CATEGORY,
+    DocumentStatus,
+    DocumentType,
+    TaskStatus,
+)
+from students.models import Document, ExtractedField, Task
 from students.services.consistency import check_cross_document_consistency
 from students.services.document_extraction import (
     DocumentExtractionError,
@@ -16,6 +24,15 @@ from students.services.document_extraction import (
 from students.utils import add_quality_flag, build_renamed_filename
 
 logger = logging.getLogger(__name__)
+
+OPEN_TASK_STATUSES = [
+    TaskStatus.PENDING,
+    TaskStatus.IN_PROGRESS,
+    TaskStatus.WAITING_FOR_STUDENT,
+]
+
+# How many days before a deadline to send the reminder email.
+REMINDER_LEAD_DAYS = 2
 
 
 def _extract_and_apply(document):
@@ -142,3 +159,60 @@ def _reclassify_document(document, detected_type):
             "updated_at",
         ]
     )
+
+
+@shared_task
+def flag_overdue_tasks():
+    """Runs daily - anything still open past its due date becomes OVERDUE,
+    which is what feeds the dashboard's adviser-workload overdue count."""
+
+    updated = Task.objects.filter(
+        due_date__lt=timezone.now().date(),
+        task_status__in=OPEN_TASK_STATUSES,
+    ).update(task_status=TaskStatus.OVERDUE)
+    if updated:
+        logger.info("flag_overdue_tasks: marked %s task(s) overdue", updated)
+
+
+@shared_task
+def send_deadline_reminders():
+    """Runs daily - emails whoever's assigned (staff) and the student (only
+    if they've granted communication_consent) once, REMINDER_LEAD_DAYS
+    before a task's due date. Silently does nothing per-task if no email
+    backend is configured yet (see EMAIL_BACKEND in settings)."""
+
+    target_date = timezone.now().date() + timedelta(days=REMINDER_LEAD_DAYS)
+    tasks = Task.objects.filter(
+        due_date=target_date,
+        task_status__in=OPEN_TASK_STATUSES,
+        reminder_sent_at__isnull=True,
+    ).select_related("assignee", "case__student")
+
+    for task in tasks:
+        student = task.case.student
+        recipients = []
+        if task.assignee and task.assignee.email:
+            recipients.append(task.assignee.email)
+        if student.communication_consent and student.email:
+            recipients.append(student.email)
+
+        if recipients:
+            try:
+                send_mail(
+                    subject=f'Reminder: "{task.title}" due {task.due_date}',
+                    message=(
+                        f'This is a reminder that "{task.title}" for '
+                        f"{student.first_name} {student.last_name} is due on "
+                        f"{task.due_date}."
+                    ),
+                    from_email=None,
+                    recipient_list=recipients,
+                    fail_silently=True,
+                )
+            except Exception:
+                logger.exception(
+                    "send_deadline_reminders: failed to email for task %s", task.id
+                )
+
+        task.reminder_sent_at = timezone.now()
+        task.save(update_fields=["reminder_sent_at"])

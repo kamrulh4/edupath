@@ -153,7 +153,7 @@ export default function DashboardPage() {
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-sm text-muted-foreground">
-						Upcoming deadlines (next 7 days)
+						Deadlines & overdue (next 7 days)
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
@@ -177,7 +177,13 @@ export default function DashboardPage() {
 										<TableCell>{task.title}</TableCell>
 										<TableCell>{task.due_date}</TableCell>
 										<TableCell>
-											<Badge variant="secondary">
+											<Badge
+												variant={
+													task.task_status === "OVERDUE"
+														? "destructive"
+														: "secondary"
+												}
+											>
 												{task.task_status.replaceAll("_", " ")}
 											</Badge>
 										</TableCell>

@@ -20,6 +20,7 @@ class ApplicationDraftSerializer(serializers.ModelSerializer):
             "case",
             "template",
             "draft_file",
+            "missing_fields",
             "is_approved",
             "adviser_notes",
             "status",
@@ -29,6 +30,7 @@ class ApplicationDraftSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id",
             "uid",
+            "missing_fields",
             "is_approved",
             "status",
             "created_at",

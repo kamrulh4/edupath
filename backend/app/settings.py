@@ -219,6 +219,21 @@ CELERY_RESULT_BACKEND = REDIS_URL
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_EXTRACTION_MODEL = os.environ.get("GEMINI_EXTRACTION_MODEL", "gemini-flash-latest")
 
+# Email - used for deadline reminder notifications. Uses Gmail SMTP by
+# default; falls back to printing to the console when no credentials are
+# configured, so the reminder pipeline still runs (and is testable) before
+# real credentials are added.
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = True
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+
 
 # Logging settings
 LOGGING = {

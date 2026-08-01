@@ -238,6 +238,7 @@ export type ApplicationDraft = {
 	case: string;
 	template: string | null;
 	draft_file: string;
+	missing_fields: string[];
 	is_approved: boolean;
 	adviser_notes: string;
 	status: string;
