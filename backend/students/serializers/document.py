@@ -4,6 +4,7 @@ from rest_framework import serializers
 from core.audit import log_action
 from students.choices import DOCUMENT_TYPE_TO_CATEGORY
 from students.models import Case, Document
+from students.tasks import extract_document_fields
 from students.utils import build_renamed_filename, hash_file
 
 
@@ -82,5 +83,8 @@ class DocumentSerializer(serializers.ModelSerializer):
             document,
             details={"document_type": document_type, "is_duplicate": is_duplicate},
         )
+
+        if not is_duplicate:
+            extract_document_fields.delay(document.id)
 
         return document

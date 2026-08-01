@@ -210,6 +210,15 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+# Celery - backs background jobs like AI document extraction
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+
+# Gemini - used for AI document field extraction
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_EXTRACTION_MODEL = os.environ.get("GEMINI_EXTRACTION_MODEL", "gemini-flash-latest")
+
 
 # Logging settings
 LOGGING = {
