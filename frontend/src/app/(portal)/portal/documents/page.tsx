@@ -40,7 +40,7 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 	ENGLISH_RESULT: "English Result",
 	POLICE_CLEARANCE: "Police Clearance",
 	FINANCIAL: "Financial",
-	OTHER: "Other",
+	OTHER: "Other / Not sure - let AI detect",
 };
 
 const DOCUMENT_TYPES = Object.keys(DOCUMENT_TYPE_LABELS) as DocumentType[];

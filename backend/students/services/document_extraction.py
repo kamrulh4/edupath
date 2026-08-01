@@ -57,34 +57,38 @@ DOCUMENT_TYPE_HINTS = {
     ),
 }
 
-RESPONSE_SCHEMA = types.Schema(
+FIELD_ITEM_SCHEMA = types.Schema(
     type=types.Type.OBJECT,
     properties={
-        "fields": types.Schema(
-            type=types.Type.ARRAY,
-            items=types.Schema(
-                type=types.Type.OBJECT,
-                properties={
-                    "field_name": types.Schema(type=types.Type.STRING),
-                    "extracted_value": types.Schema(type=types.Type.STRING),
-                    "confidence_level": types.Schema(
-                        type=types.Type.STRING,
-                        enum=[level.value for level in ConfidenceLevel],
-                    ),
-                },
-                required=["field_name", "extracted_value", "confidence_level"],
-            ),
-        )
+        "field_name": types.Schema(type=types.Type.STRING),
+        "extracted_value": types.Schema(type=types.Type.STRING),
+        "confidence_level": types.Schema(
+            type=types.Type.STRING,
+            enum=[level.value for level in ConfidenceLevel],
+        ),
     },
+    required=["field_name", "extracted_value", "confidence_level"],
+)
+
+EXTRACTION_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={"fields": types.Schema(type=types.Type.ARRAY, items=FIELD_ITEM_SCHEMA)},
     required=["fields"],
 )
 
-PROMPT_TEMPLATE = """You are extracting structured data from a "{doc_label}" document \
-for an international education consultancy's case management system.
+CLASSIFY_AND_EXTRACT_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "document_type": types.Schema(
+            type=types.Type.STRING,
+            enum=[dt.value for dt in DocumentType],
+        ),
+        "fields": types.Schema(type=types.Type.ARRAY, items=FIELD_ITEM_SCHEMA),
+    },
+    required=["document_type", "fields"],
+)
 
-Look for these fields if present: {hints}.
-
-Return every field you can clearly read as a separate entry with:
+FIELD_INSTRUCTIONS = """Return every field you can clearly read as a separate entry with:
 - field_name: a short snake_case name (e.g. "passport_number", "date_of_birth")
 - extracted_value: ONLY the raw value copied exactly as it appears on the document \
 (e.g. "A+", "15 July 2023") - never a description, label, or explanation of the field
@@ -93,7 +97,30 @@ you are inferring formatting or context, LOW if the text is unclear, blurry, or 
 are guessing
 
 Do not invent values that are not present in the document. Skip fields that are not \
-present rather than guessing.
+present rather than guessing."""
+
+EXTRACTION_PROMPT_TEMPLATE = """You are extracting structured data from a "{doc_label}" \
+document for an international education consultancy's case management system.
+
+Look for these fields if present: {hints}.
+
+{field_instructions}
+"""
+
+CLASSIFY_AND_EXTRACT_PROMPT_TEMPLATE = """You are analyzing an uploaded document for an \
+international education consultancy's case management system. The staff member did not \
+say what type of document this is, so you must work it out from the file itself.
+
+First, determine which of these document types it is:
+{type_options}
+
+Then extract the fields relevant to whichever type you picked, for example: {all_hints}.
+
+Return:
+- document_type: exactly one of the type codes listed above
+- fields: the extracted fields
+
+{field_instructions}
 """
 
 
@@ -111,10 +138,7 @@ def _extract_docx_text(file_bytes: bytes) -> str:
     return "\n".join(p.text for p in document.paragraphs if p.text.strip())
 
 
-def extract_fields_from_document(document) -> list[dict]:
-    if not settings.GEMINI_API_KEY:
-        raise DocumentExtractionError("GEMINI_API_KEY is not configured.")
-
+def _build_content_part(document):
     source_file = document.renamed_file or document.original_file
     source_file.open("rb")
     try:
@@ -125,15 +149,10 @@ def extract_fields_from_document(document) -> list[dict]:
     mime_type, _ = mimetypes.guess_type(source_file.name)
     mime_type = mime_type or "application/octet-stream"
 
-    doc_label = DocumentType(document.document_type).label
-    hints = DOCUMENT_TYPE_HINTS.get(
-        document.document_type, DOCUMENT_TYPE_HINTS[DocumentType.OTHER]
-    )
-    prompt = PROMPT_TEMPLATE.format(doc_label=doc_label, hints=hints)
-
     if mime_type in NATIVE_MIME_TYPES:
-        content_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
-    elif mime_type == DOCX_MIME_TYPE:
+        return types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+
+    if mime_type == DOCX_MIME_TYPE:
         try:
             text = _extract_docx_text(file_bytes)
         except Exception as exc:
@@ -142,11 +161,16 @@ def extract_fields_from_document(document) -> list[dict]:
             ) from exc
         if not text:
             raise UnsupportedDocumentTypeError("The .docx file has no readable text.")
-        content_part = f"Document text (extracted from a Word file):\n\n{text}"
-    else:
-        raise UnsupportedDocumentTypeError(
-            f"Unsupported file type for AI extraction: {mime_type}"
-        )
+        return f"Document text (extracted from a Word file):\n\n{text}"
+
+    raise UnsupportedDocumentTypeError(
+        f"Unsupported file type for AI extraction: {mime_type}"
+    )
+
+
+def _call_gemini(content_part, prompt, response_schema) -> dict:
+    if not settings.GEMINI_API_KEY:
+        raise DocumentExtractionError("GEMINI_API_KEY is not configured.")
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -156,15 +180,51 @@ def extract_fields_from_document(document) -> list[dict]:
             contents=[content_part, prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=RESPONSE_SCHEMA,
+                response_schema=response_schema,
             ),
         )
     except Exception as exc:
         raise DocumentExtractionError(str(exc)) from exc
 
     try:
-        payload = json.loads(response.text)
+        return json.loads(response.text)
     except (TypeError, ValueError) as exc:
         raise DocumentExtractionError("Gemini returned a non-JSON response.") from exc
 
+
+def extract_fields_from_document(document) -> list[dict]:
+    content_part = _build_content_part(document)
+
+    doc_label = DocumentType(document.document_type).label
+    hints = DOCUMENT_TYPE_HINTS.get(
+        document.document_type, DOCUMENT_TYPE_HINTS[DocumentType.OTHER]
+    )
+    prompt = EXTRACTION_PROMPT_TEMPLATE.format(
+        doc_label=doc_label, hints=hints, field_instructions=FIELD_INSTRUCTIONS
+    )
+
+    payload = _call_gemini(content_part, prompt, EXTRACTION_SCHEMA)
     return payload.get("fields", [])
+
+
+def classify_and_extract_fields(document) -> dict:
+    """Used when the uploader didn't specify a document_type (left as OTHER) -
+    asks Gemini to identify the type and extract fields in a single call."""
+
+    content_part = _build_content_part(document)
+
+    type_options = "\n".join(
+        f"- {dt.value}: {DOCUMENT_TYPE_HINTS[dt]}" for dt in DocumentType
+    )
+    all_hints = "; ".join(DOCUMENT_TYPE_HINTS.values())
+    prompt = CLASSIFY_AND_EXTRACT_PROMPT_TEMPLATE.format(
+        type_options=type_options,
+        all_hints=all_hints,
+        field_instructions=FIELD_INSTRUCTIONS,
+    )
+
+    payload = _call_gemini(content_part, prompt, CLASSIFY_AND_EXTRACT_SCHEMA)
+    return {
+        "document_type": payload.get("document_type", DocumentType.OTHER),
+        "fields": payload.get("fields", []),
+    }
