@@ -57,6 +57,15 @@ DOCUMENT_TYPE_HINTS = {
     ),
 }
 
+# Physical/scan quality issues Gemini is asked to self-report alongside
+# extraction - lets the review queue flag a bad scan without a second call.
+QUALITY_ISSUE_CHOICES = [
+    "BLURRY",
+    "PARTIALLY_UNREADABLE",
+    "INCOMPLETE_OR_CUT_OFF",
+    "LOW_RESOLUTION",
+]
+
 FIELD_ITEM_SCHEMA = types.Schema(
     type=types.Type.OBJECT,
     properties={
@@ -70,10 +79,18 @@ FIELD_ITEM_SCHEMA = types.Schema(
     required=["field_name", "extracted_value", "confidence_level"],
 )
 
+QUALITY_FLAGS_SCHEMA = types.Schema(
+    type=types.Type.ARRAY,
+    items=types.Schema(type=types.Type.STRING, enum=QUALITY_ISSUE_CHOICES),
+)
+
 EXTRACTION_SCHEMA = types.Schema(
     type=types.Type.OBJECT,
-    properties={"fields": types.Schema(type=types.Type.ARRAY, items=FIELD_ITEM_SCHEMA)},
-    required=["fields"],
+    properties={
+        "fields": types.Schema(type=types.Type.ARRAY, items=FIELD_ITEM_SCHEMA),
+        "quality_flags": QUALITY_FLAGS_SCHEMA,
+    },
+    required=["fields", "quality_flags"],
 )
 
 CLASSIFY_AND_EXTRACT_SCHEMA = types.Schema(
@@ -84,8 +101,9 @@ CLASSIFY_AND_EXTRACT_SCHEMA = types.Schema(
             enum=[dt.value for dt in DocumentType],
         ),
         "fields": types.Schema(type=types.Type.ARRAY, items=FIELD_ITEM_SCHEMA),
+        "quality_flags": QUALITY_FLAGS_SCHEMA,
     },
-    required=["document_type", "fields"],
+    required=["document_type", "fields", "quality_flags"],
 )
 
 FIELD_INSTRUCTIONS = """Return every field you can clearly read as a separate entry with:
@@ -97,7 +115,12 @@ you are inferring formatting or context, LOW if the text is unclear, blurry, or 
 are guessing
 
 Do not invent values that are not present in the document. Skip fields that are not \
-present rather than guessing."""
+present rather than guessing.
+
+Also assess the physical quality of the scan/photo itself (not the content) and return \
+quality_flags - a list of any issues from: BLURRY, PARTIALLY_UNREADABLE, \
+INCOMPLETE_OR_CUT_OFF, LOW_RESOLUTION. Return an empty list if the document is clear and \
+complete."""
 
 EXTRACTION_PROMPT_TEMPLATE = """You are extracting structured data from a "{doc_label}" \
 document for an international education consultancy's case management system.
@@ -119,6 +142,7 @@ Then extract the fields relevant to whichever type you picked, for example: {all
 Return:
 - document_type: exactly one of the type codes listed above
 - fields: the extracted fields
+- quality_flags: the scan quality issues, if any
 
 {field_instructions}
 """
@@ -192,7 +216,7 @@ def _call_gemini(content_part, prompt, response_schema) -> dict:
         raise DocumentExtractionError("Gemini returned a non-JSON response.") from exc
 
 
-def extract_fields_from_document(document) -> list[dict]:
+def extract_fields_from_document(document) -> dict:
     content_part = _build_content_part(document)
 
     doc_label = DocumentType(document.document_type).label
@@ -204,7 +228,10 @@ def extract_fields_from_document(document) -> list[dict]:
     )
 
     payload = _call_gemini(content_part, prompt, EXTRACTION_SCHEMA)
-    return payload.get("fields", [])
+    return {
+        "fields": payload.get("fields", []),
+        "quality_flags": payload.get("quality_flags", []),
+    }
 
 
 def classify_and_extract_fields(document) -> dict:
@@ -227,4 +254,5 @@ def classify_and_extract_fields(document) -> dict:
     return {
         "document_type": payload.get("document_type", DocumentType.OTHER),
         "fields": payload.get("fields", []),
+        "quality_flags": payload.get("quality_flags", []),
     }

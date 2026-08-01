@@ -45,13 +45,17 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 
 const DOCUMENT_TYPES = Object.keys(DOCUMENT_TYPE_LABELS) as DocumentType[];
 
+function isZipFile(f: File) {
+	return f.name.toLowerCase().endsWith(".zip");
+}
+
 export default function PortalDocumentsPage() {
 	const [documents, setDocuments] = useState<Document[]>([]);
 	const [cases, setCases] = useState<Case[]>([]);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [uploading, setUploading] = useState(false);
 	const [documentType, setDocumentType] = useState<DocumentType>("OTHER");
-	const [file, setFile] = useState<File | null>(null);
+	const [files, setFiles] = useState<File[]>([]);
 
 	async function loadDocuments() {
 		const { results } = await apiFetch<Document[]>("/portal/documents/");
@@ -67,22 +71,43 @@ export default function PortalDocumentsPage() {
 	async function handleUpload(e: FormEvent) {
 		e.preventDefault();
 		const activeCase = cases[0];
-		if (!file || !activeCase) {
-			toast.error("Choose a file first.");
+		if (files.length === 0 || !activeCase) {
+			toast.error("Choose at least one file.");
 			return;
 		}
 		setUploading(true);
 		try {
-			const formData = new FormData();
-			formData.append("case", activeCase.uid);
-			formData.append("document_type", documentType);
-			formData.append("original_file", file);
-			await apiFetch<Document>("/portal/documents/", {
-				method: "POST",
-				body: formData,
-			});
-			toast.success("Document uploaded.");
-			setFile(null);
+			if (files.length === 1 && !isZipFile(files[0])) {
+				const formData = new FormData();
+				formData.append("case", activeCase.uid);
+				formData.append("document_type", documentType);
+				formData.append("original_file", files[0]);
+				await apiFetch<Document>("/portal/documents/", {
+					method: "POST",
+					body: formData,
+				});
+				toast.success("Document uploaded.");
+			} else {
+				const formData = new FormData();
+				formData.append("case", activeCase.uid);
+				if (files.length === 1 && isZipFile(files[0])) {
+					formData.append("zip_file", files[0]);
+				} else {
+					for (const f of files) formData.append("files", f);
+				}
+				const { results } = await apiFetch<{
+					created_count: number;
+					errors: { filename: string; error: string }[];
+				}>("/portal/documents/bulk/", { method: "POST", body: formData });
+				if (results.errors.length > 0) {
+					toast.error(
+						`${results.created_count} uploaded, ${results.errors.length} failed.`,
+					);
+				} else {
+					toast.success(`${results.created_count} document(s) uploaded.`);
+				}
+			}
+			setFiles([]);
 			setDialogOpen(false);
 			loadDocuments();
 		} catch (err) {
@@ -105,49 +130,56 @@ export default function PortalDocumentsPage() {
 					<DialogTrigger
 						render={
 							<Button size="sm" disabled={cases.length === 0}>
-								Upload document
+								Upload documents
 							</Button>
 						}
 					/>
 					<DialogContent>
 						<DialogHeader>
-							<DialogTitle>Upload a document</DialogTitle>
+							<DialogTitle>Upload documents</DialogTitle>
 						</DialogHeader>
 						<form className="flex flex-col gap-4" onSubmit={handleUpload}>
 							<div className="flex flex-col gap-2">
-								<Label>Document type</Label>
-								<Select
-									value={documentType}
-									onValueChange={(value) =>
-										setDocumentType((value as DocumentType) ?? "OTHER")
-									}
-								>
-									<SelectTrigger className="w-full">
-										<SelectValue>
-											{(value: DocumentType | null) =>
-												value ? DOCUMENT_TYPE_LABELS[value] : "Select a type"
-											}
-										</SelectValue>
-									</SelectTrigger>
-									<SelectContent>
-										{DOCUMENT_TYPES.map((type) => (
-											<SelectItem key={type} value={type}>
-												{DOCUMENT_TYPE_LABELS[type]}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-							<div className="flex flex-col gap-2">
-								<Label>File</Label>
+								<Label>File(s)</Label>
 								<input
 									type="file"
 									required
-									accept=".pdf,.jpg,.jpeg,.png,.webp,.docx"
-									onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+									multiple
+									accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.zip"
+									onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
 									className="text-sm"
 								/>
+								<p className="text-xs text-muted-foreground">
+									Select multiple files or a .zip to upload several documents at
+									once — AI will classify each one automatically.
+								</p>
 							</div>
+							{files.length <= 1 && !(files[0] && isZipFile(files[0])) && (
+								<div className="flex flex-col gap-2">
+									<Label>Document type</Label>
+									<Select
+										value={documentType}
+										onValueChange={(value) =>
+											setDocumentType((value as DocumentType) ?? "OTHER")
+										}
+									>
+										<SelectTrigger className="w-full">
+											<SelectValue>
+												{(value: DocumentType | null) =>
+													value ? DOCUMENT_TYPE_LABELS[value] : "Select a type"
+												}
+											</SelectValue>
+										</SelectTrigger>
+										<SelectContent>
+											{DOCUMENT_TYPES.map((type) => (
+												<SelectItem key={type} value={type}>
+													{DOCUMENT_TYPE_LABELS[type]}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							)}
 							<DialogFooter>
 								<Button type="submit" disabled={uploading}>
 									{uploading ? "Uploading..." : "Upload"}

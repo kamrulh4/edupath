@@ -30,3 +30,9 @@ def build_renamed_filename(case, document_type: str, original_name: str) -> str:
     year = timezone.now().year
     ext = os.path.splitext(original_name)[1]
     return f"{student_name}_{type_label}_{year}{ext}"
+
+
+def add_quality_flag(document, flag: str):
+    if flag not in document.quality_flags:
+        document.quality_flags = [*document.quality_flags, flag]
+        document.save(update_fields=["quality_flags", "updated_at"])

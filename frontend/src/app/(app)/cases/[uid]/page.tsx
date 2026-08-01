@@ -82,6 +82,23 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 
 const DOCUMENT_TYPES = Object.keys(DOCUMENT_TYPE_LABELS) as DocumentType[];
 
+const QUALITY_FLAG_LABELS: Record<string, string> = {
+	AI_UNSUPPORTED_FILE_TYPE: "Unsupported file",
+	AI_EXTRACTION_FAILED: "AI extraction failed",
+	DATE_OF_BIRTH_MISMATCH: "DOB mismatch",
+	PASSPORT_NUMBER_MISMATCH: "Passport # mismatch",
+	NATIONALITY_MISMATCH: "Nationality mismatch",
+	NAME_MISMATCH: "Name mismatch",
+	AI_QUALITY_BLURRY: "Blurry",
+	AI_QUALITY_PARTIALLY_UNREADABLE: "Partially unreadable",
+	AI_QUALITY_INCOMPLETE_OR_CUT_OFF: "Incomplete / cut off",
+	AI_QUALITY_LOW_RESOLUTION: "Low resolution",
+};
+
+function qualityFlagLabel(flag: string) {
+	return QUALITY_FLAG_LABELS[flag] ?? flag.replaceAll("_", " ").toLowerCase();
+}
+
 export default function CaseDetailPage() {
 	const params = useParams<{ uid: string }>();
 	const [caseData, setCaseData] = useState<Case | null>(null);
@@ -91,7 +108,7 @@ export default function CaseDetailPage() {
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [uploading, setUploading] = useState(false);
 	const [documentType, setDocumentType] = useState<DocumentType>("OTHER");
-	const [file, setFile] = useState<File | null>(null);
+	const [files, setFiles] = useState<File[]>([]);
 
 	const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 	const [courses, setCourses] = useState<Course[]>([]);
@@ -217,24 +234,51 @@ export default function CaseDetailPage() {
 		load();
 	}, [params.uid]);
 
+	function isZipFile(f: File) {
+		return f.name.toLowerCase().endsWith(".zip");
+	}
+
 	async function handleUpload(e: FormEvent) {
 		e.preventDefault();
-		if (!file || !caseData) {
-			toast.error("Choose a file first.");
+		if (files.length === 0 || !caseData) {
+			toast.error("Choose at least one file.");
 			return;
 		}
 		setUploading(true);
 		try {
-			const formData = new FormData();
-			formData.append("case", caseData.uid);
-			formData.append("document_type", documentType);
-			formData.append("original_file", file);
-			await apiFetch<Document>("/documents/", {
-				method: "POST",
-				body: formData,
-			});
-			toast.success("Document uploaded.");
-			setFile(null);
+			if (files.length === 1 && !isZipFile(files[0])) {
+				const formData = new FormData();
+				formData.append("case", caseData.uid);
+				formData.append("document_type", documentType);
+				formData.append("original_file", files[0]);
+				await apiFetch<Document>("/documents/", {
+					method: "POST",
+					body: formData,
+				});
+				toast.success("Document uploaded.");
+			} else {
+				const formData = new FormData();
+				formData.append("case", caseData.uid);
+				if (files.length === 1 && isZipFile(files[0])) {
+					formData.append("zip_file", files[0]);
+				} else {
+					for (const f of files) formData.append("files", f);
+				}
+				const { results } = await apiFetch<{
+					created_count: number;
+					errors: { filename: string; error: string }[];
+				}>("/documents/bulk/", { method: "POST", body: formData });
+				if (results.errors.length > 0) {
+					toast.error(
+						`${results.created_count} uploaded, ${results.errors.length} failed.`,
+					);
+				} else {
+					toast.success(
+						`${results.created_count} document(s) uploaded — AI is classifying each one.`,
+					);
+				}
+			}
+			setFiles([]);
 			setDialogOpen(false);
 			loadDocuments();
 		} catch (err) {
@@ -508,43 +552,52 @@ export default function CaseDetailPage() {
 						/>
 						<DialogContent>
 							<DialogHeader>
-								<DialogTitle>Upload a document</DialogTitle>
+								<DialogTitle>Upload documents</DialogTitle>
 							</DialogHeader>
 							<form className="flex flex-col gap-4" onSubmit={handleUpload}>
 								<div className="flex flex-col gap-2">
-									<Label>Document type</Label>
-									<Select
-										value={documentType}
-										onValueChange={(value) =>
-											setDocumentType((value as DocumentType) ?? "OTHER")
-										}
-									>
-										<SelectTrigger className="w-full">
-											<SelectValue>
-												{(value: DocumentType | null) =>
-													value ? DOCUMENT_TYPE_LABELS[value] : "Select a type"
-												}
-											</SelectValue>
-										</SelectTrigger>
-										<SelectContent>
-											{DOCUMENT_TYPES.map((type) => (
-												<SelectItem key={type} value={type}>
-													{DOCUMENT_TYPE_LABELS[type]}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-								<div className="flex flex-col gap-2">
-									<Label>File</Label>
+									<Label>File(s)</Label>
 									<input
 										type="file"
 										required
-										accept=".pdf,.jpg,.jpeg,.png,.webp,.docx"
-										onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+										multiple
+										accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.zip"
+										onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
 										className="text-sm"
 									/>
+									<p className="text-xs text-muted-foreground">
+										Select multiple files or a .zip to bulk upload - AI will
+										classify each one automatically.
+									</p>
 								</div>
+								{files.length <= 1 && !(files[0] && isZipFile(files[0])) && (
+									<div className="flex flex-col gap-2">
+										<Label>Document type</Label>
+										<Select
+											value={documentType}
+											onValueChange={(value) =>
+												setDocumentType((value as DocumentType) ?? "OTHER")
+											}
+										>
+											<SelectTrigger className="w-full">
+												<SelectValue>
+													{(value: DocumentType | null) =>
+														value
+															? DOCUMENT_TYPE_LABELS[value]
+															: "Select a type"
+													}
+												</SelectValue>
+											</SelectTrigger>
+											<SelectContent>
+												{DOCUMENT_TYPES.map((type) => (
+													<SelectItem key={type} value={type}>
+														{DOCUMENT_TYPE_LABELS[type]}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
 								<DialogFooter>
 									<Button type="submit" disabled={uploading}>
 										{uploading ? "Uploading..." : "Upload"}
@@ -582,9 +635,16 @@ export default function CaseDetailPage() {
 											<Badge variant="secondary">{doc.doc_status}</Badge>
 										</TableCell>
 										<TableCell>
-											{doc.is_duplicate && (
-												<Badge variant="destructive">Duplicate</Badge>
-											)}
+											<div className="flex flex-wrap gap-1">
+												{doc.is_duplicate && (
+													<Badge variant="destructive">Duplicate</Badge>
+												)}
+												{doc.quality_flags.map((flag) => (
+													<Badge key={flag} variant="destructive">
+														{qualityFlagLabel(flag)}
+													</Badge>
+												))}
+											</div>
 										</TableCell>
 										<TableCell>
 											<a

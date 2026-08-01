@@ -8,6 +8,7 @@ from core.choices import UserKind
 from core.permissions import HasRole
 from students.models import ExtractedField
 from students.serializers.extracted_field import ExtractedFieldSerializer
+from students.services.profile_sync import sync_verified_field_to_profile
 
 IsOrganisationStaff = HasRole(
     UserKind.ADMIN, UserKind.ADVISER, UserKind.ADMISSION_OFFICER
@@ -68,6 +69,7 @@ class ExtractedFieldVerifyView(StandardResponseMixin, generics.GenericAPIView):
         field.save(
             update_fields=["extracted_value", "is_verified", "reviewer", "updated_at"]
         )
+        sync_verified_field_to_profile(field)
         log_action(
             request, "FIELD_VERIFIED", field, details={"field_name": field.field_name}
         )

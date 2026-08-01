@@ -6,47 +6,35 @@ from django.db import transaction
 
 from students.choices import DOCUMENT_TYPE_TO_CATEGORY, DocumentStatus, DocumentType
 from students.models import Document, ExtractedField
+from students.services.consistency import check_cross_document_consistency
 from students.services.document_extraction import (
     DocumentExtractionError,
     UnsupportedDocumentTypeError,
     classify_and_extract_fields,
     extract_fields_from_document,
 )
-from students.utils import build_renamed_filename
+from students.utils import add_quality_flag, build_renamed_filename
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=30)
-def extract_document_fields(self, document_id):
-    try:
-        document = Document.objects.get(id=document_id)
-    except Document.DoesNotExist:
-        logger.warning(
-            "extract_document_fields: document %s no longer exists", document_id
-        )
-        return
+def _extract_and_apply(document):
+    """Runs classification/extraction for one document and applies the
+    result. Raises DocumentExtractionError (or the more specific
+    UnsupportedDocumentTypeError) on failure - callers decide whether to
+    retry or flag it."""
 
     needs_classification = document.document_type == DocumentType.OTHER
 
-    try:
-        if needs_classification:
-            result = classify_and_extract_fields(document)
-            detected_type = result["document_type"]
-            fields = result["fields"]
-        else:
-            detected_type = None
-            fields = extract_fields_from_document(document)
-    except UnsupportedDocumentTypeError as exc:
-        logger.warning("Unsupported file type for document %s: %s", document_id, exc)
-        _flag_extraction_failure(document, "AI_UNSUPPORTED_FILE_TYPE")
-        return
-    except DocumentExtractionError as exc:
-        logger.warning("Gemini extraction failed for document %s: %s", document_id, exc)
-        if self.request.retries < self.max_retries:
-            raise self.retry(exc=exc)
-        _flag_extraction_failure(document, "AI_EXTRACTION_FAILED")
-        return
+    if needs_classification:
+        result = classify_and_extract_fields(document)
+        detected_type = result["document_type"]
+    else:
+        detected_type = None
+        result = extract_fields_from_document(document)
+
+    fields = result["fields"]
+    quality_flags = result["quality_flags"]
 
     with transaction.atomic():
         if detected_type and detected_type != document.document_type:
@@ -67,6 +55,60 @@ def extract_document_fields(self, document_id):
         if document.doc_status == DocumentStatus.PENDING:
             document.doc_status = DocumentStatus.SUBMITTED
             document.save(update_fields=["doc_status", "updated_at"])
+
+    for issue in quality_flags:
+        add_quality_flag(document, f"AI_QUALITY_{issue}")
+
+    check_cross_document_consistency(document)
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def extract_document_fields(self, document_id):
+    try:
+        document = Document.objects.get(id=document_id)
+    except Document.DoesNotExist:
+        logger.warning(
+            "extract_document_fields: document %s no longer exists", document_id
+        )
+        return
+
+    try:
+        _extract_and_apply(document)
+    except UnsupportedDocumentTypeError as exc:
+        logger.warning("Unsupported file type for document %s: %s", document_id, exc)
+        add_quality_flag(document, "AI_UNSUPPORTED_FILE_TYPE")
+    except DocumentExtractionError as exc:
+        logger.warning("Gemini extraction failed for document %s: %s", document_id, exc)
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=exc)
+        add_quality_flag(document, "AI_EXTRACTION_FAILED")
+
+
+@shared_task
+def extract_documents_bulk(document_ids):
+    """Processes a batch of documents inside a single task execution, rather
+    than firing one .delay() per file - a burst of many rapid .delay() calls
+    against the remote broker proved unreliable (some messages never
+    arrived), so bulk uploads are enqueued as one message instead."""
+
+    for document_id in document_ids:
+        try:
+            document = Document.objects.get(id=document_id)
+        except Document.DoesNotExist:
+            continue
+
+        try:
+            _extract_and_apply(document)
+        except UnsupportedDocumentTypeError as exc:
+            logger.warning(
+                "Unsupported file type for document %s: %s", document_id, exc
+            )
+            add_quality_flag(document, "AI_UNSUPPORTED_FILE_TYPE")
+        except DocumentExtractionError as exc:
+            logger.warning(
+                "Gemini extraction failed for document %s: %s", document_id, exc
+            )
+            add_quality_flag(document, "AI_EXTRACTION_FAILED")
 
 
 def _reclassify_document(document, detected_type):
@@ -100,9 +142,3 @@ def _reclassify_document(document, detected_type):
             "updated_at",
         ]
     )
-
-
-def _flag_extraction_failure(document, flag):
-    if flag not in document.quality_flags:
-        document.quality_flags = [*document.quality_flags, flag]
-        document.save(update_fields=["quality_flags", "updated_at"])

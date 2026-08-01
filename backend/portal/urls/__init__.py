@@ -2,7 +2,7 @@ from django.urls import path
 
 from portal.views.case import CaseListView
 from portal.views.communication import CommunicationListCreateView
-from portal.views.document import DocumentListCreateView
+from portal.views.document import DocumentBulkUploadView, DocumentListCreateView
 from portal.views.profile import ProfileView
 from portal.views.recommendation import RecommendationListView
 
@@ -13,6 +13,11 @@ urlpatterns = [
         "documents/",
         DocumentListCreateView.as_view(),
         name="portal-document-list-create",
+    ),
+    path(
+        "documents/bulk/",
+        DocumentBulkUploadView.as_view(),
+        name="portal-document-bulk-upload",
     ),
     path(
         "recommendations/",
