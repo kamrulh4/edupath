@@ -273,3 +273,25 @@ export type Communication = {
 	created_at: string;
 	updated_at: string;
 };
+
+export type AdviserWorkload = {
+	adviser_uid: string;
+	adviser_name: string;
+	active_cases: number;
+	pending_tasks: number;
+	overdue_tasks: number;
+};
+
+export type CourseInterest = {
+	course_uid: string;
+	course_name: string;
+	provider_name: string;
+	recommendation_count: number;
+};
+
+export type DashboardReporting = {
+	missing_documents_count: number;
+	upcoming_deadlines: Task[];
+	adviser_workload: AdviserWorkload[];
+	course_interest: CourseInterest[];
+};

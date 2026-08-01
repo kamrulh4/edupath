@@ -93,6 +93,7 @@ const QUALITY_FLAG_LABELS: Record<string, string> = {
 	AI_QUALITY_PARTIALLY_UNREADABLE: "Partially unreadable",
 	AI_QUALITY_INCOMPLETE_OR_CUT_OFF: "Incomplete / cut off",
 	AI_QUALITY_LOW_RESOLUTION: "Low resolution",
+	AI_PROCESSING_NOT_CONSENTED: "AI consent not granted",
 };
 
 function qualityFlagLabel(flag: string) {

@@ -18,6 +18,9 @@ export default function StudentDetailPage() {
 	const [saving, setSaving] = useState(false);
 	const [inviting, setInviting] = useState(false);
 	const [inviteLink, setInviteLink] = useState<string | null>(null);
+	const [consentSaving, setConsentSaving] = useState<
+		"ai_processing_consent" | "communication_consent" | null
+	>(null);
 
 	async function load() {
 		const { results } = await apiFetch<Student>(`/students/${params.uid}/`);
@@ -71,6 +74,27 @@ export default function StudentDetailPage() {
 			toast.error(
 				err instanceof ApiError ? err.message : "Could not update photo.",
 			);
+		}
+	}
+
+	async function handleConsentToggle(
+		field: "ai_processing_consent" | "communication_consent",
+	) {
+		if (!student) return;
+		setConsentSaving(field);
+		try {
+			const { results } = await apiFetch<Student>(`/students/${student.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ [field]: !student[field] }),
+			});
+			setStudent(results);
+			toast.success("Consent updated.");
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update consent.",
+			);
+		} finally {
+			setConsentSaving(null);
 		}
 	}
 
@@ -237,6 +261,69 @@ export default function StudentDetailPage() {
 							{saving ? "Saving..." : "Save changes"}
 						</Button>
 					</form>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Consent</CardTitle>
+				</CardHeader>
+				<CardContent className="flex flex-col gap-4">
+					<div className="flex items-center justify-between gap-4">
+						<div>
+							<p className="text-sm font-medium">AI processing consent</p>
+							<p className="text-xs text-muted-foreground">
+								Required before uploaded documents are sent to Gemini for field
+								extraction.
+								{student.ai_processing_consent_at &&
+									` Granted ${new Date(student.ai_processing_consent_at).toLocaleString()}.`}
+							</p>
+						</div>
+						<div className="flex shrink-0 items-center gap-2">
+							<Badge
+								variant={
+									student.ai_processing_consent ? "default" : "secondary"
+								}
+							>
+								{student.ai_processing_consent ? "Granted" : "Not granted"}
+							</Badge>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={consentSaving === "ai_processing_consent"}
+								onClick={() => handleConsentToggle("ai_processing_consent")}
+							>
+								{student.ai_processing_consent ? "Revoke" : "Grant"}
+							</Button>
+						</div>
+					</div>
+					<div className="flex items-center justify-between gap-4">
+						<div>
+							<p className="text-sm font-medium">Communication consent</p>
+							<p className="text-xs text-muted-foreground">
+								Permission to contact the student about their application.
+								{student.communication_consent_at &&
+									` Granted ${new Date(student.communication_consent_at).toLocaleString()}.`}
+							</p>
+						</div>
+						<div className="flex shrink-0 items-center gap-2">
+							<Badge
+								variant={
+									student.communication_consent ? "default" : "secondary"
+								}
+							>
+								{student.communication_consent ? "Granted" : "Not granted"}
+							</Badge>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={consentSaving === "communication_consent"}
+								onClick={() => handleConsentToggle("communication_consent")}
+							>
+								{student.communication_consent ? "Revoke" : "Grant"}
+							</Button>
+						</div>
+					</div>
 				</CardContent>
 			</Card>
 		</div>

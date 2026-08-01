@@ -7,7 +7,7 @@ from core.audit import log_action
 from students.choices import DOCUMENT_TYPE_TO_CATEGORY, DocumentType
 from students.models import Document
 from students.tasks import extract_document_fields, extract_documents_bulk
-from students.utils import build_renamed_filename, hash_file
+from students.utils import add_quality_flag, build_renamed_filename, hash_file
 
 # Skip the junk entries macOS/most zip tools add automatically.
 IGNORED_ZIP_ENTRY_PREFIXES = ("__MACOSX/",)
@@ -62,7 +62,10 @@ def create_document(
     )
 
     if not is_duplicate and enqueue_extraction:
-        extract_document_fields.delay(document.id)
+        if case.student.ai_processing_consent:
+            extract_document_fields.delay(document.id)
+        else:
+            add_quality_flag(document, "AI_PROCESSING_NOT_CONSENTED")
 
     return document
 
@@ -108,8 +111,12 @@ def create_documents_bulk(request, case, files=None, zip_file=None):
             continue
         created.append(document)
 
-    non_duplicate_ids = [doc.id for doc in created if not doc.is_duplicate]
-    if non_duplicate_ids:
-        extract_documents_bulk.delay(non_duplicate_ids)
+    non_duplicate = [doc for doc in created if not doc.is_duplicate]
+    if non_duplicate:
+        if case.student.ai_processing_consent:
+            extract_documents_bulk.delay([doc.id for doc in non_duplicate])
+        else:
+            for doc in non_duplicate:
+                add_quality_flag(doc, "AI_PROCESSING_NOT_CONSENTED")
 
     return created, errors

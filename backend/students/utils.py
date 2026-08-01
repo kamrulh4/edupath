@@ -36,3 +36,27 @@ def add_quality_flag(document, flag: str):
     if flag not in document.quality_flags:
         document.quality_flags = [*document.quality_flags, flag]
         document.save(update_fields=["quality_flags", "updated_at"])
+
+
+CONSENT_FIELDS = (
+    ("ai_processing_consent", "ai_processing_consent_at"),
+    ("communication_consent", "communication_consent_at"),
+)
+
+
+def apply_consent_timestamps(instance, validated_data):
+    """The *_consent_at timestamps are server-controlled, never client-
+    supplied - set automatically the moment a consent flag flips to True,
+    and cleared if it's revoked. Call from a serializer's update() before
+    saving."""
+
+    now = timezone.now()
+    for flag_field, ts_field in CONSENT_FIELDS:
+        if flag_field in validated_data:
+            new_value = validated_data[flag_field]
+            old_value = getattr(instance, flag_field)
+            if new_value and not old_value:
+                validated_data[ts_field] = now
+            elif not new_value:
+                validated_data[ts_field] = None
+    return validated_data

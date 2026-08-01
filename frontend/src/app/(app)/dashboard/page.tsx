@@ -1,13 +1,23 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { apiFetch } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import type {
 	Case,
 	CaseStage,
+	DashboardReporting,
 	ExtractedField,
 	Organisation,
 	Student,
@@ -35,6 +45,7 @@ export default function DashboardPage() {
 	const [stageBreakdown, setStageBreakdown] = useState<Record<string, number>>(
 		{},
 	);
+	const [reporting, setReporting] = useState<DashboardReporting | null>(null);
 
 	useEffect(() => {
 		apiFetch<Organisation>("/organisation/").then(({ results }) =>
@@ -57,6 +68,9 @@ export default function DashboardPage() {
 				),
 			),
 		).then((entries) => setStageBreakdown(Object.fromEntries(entries)));
+		apiFetch<DashboardReporting>("/dashboard/").then(({ results }) =>
+			setReporting(results),
+		);
 	}, []);
 
 	return (
@@ -69,7 +83,7 @@ export default function DashboardPage() {
 					{organisation?.name ?? "Loading workspace..."}
 				</p>
 			</div>
-			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-sm text-muted-foreground">
@@ -110,6 +124,16 @@ export default function DashboardPage() {
 						{unverifiedFieldCount ?? "..."}
 					</CardContent>
 				</Card>
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-sm text-muted-foreground">
+							Missing documents
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="text-3xl font-semibold">
+						{reporting?.missing_documents_count ?? "..."}
+					</CardContent>
+				</Card>
 			</div>
 			<Card>
 				<CardHeader>
@@ -125,6 +149,133 @@ export default function DashboardPage() {
 					))}
 				</CardContent>
 			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-sm text-muted-foreground">
+						Upcoming deadlines (next 7 days)
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					{!reporting || reporting.upcoming_deadlines.length === 0 ? (
+						<p className="text-sm text-muted-foreground">
+							{reporting ? "No upcoming deadlines." : "Loading..."}
+						</p>
+					) : (
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>Task</TableHead>
+									<TableHead>Due date</TableHead>
+									<TableHead>Status</TableHead>
+									<TableHead>Case</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{reporting.upcoming_deadlines.map((task) => (
+									<TableRow key={task.uid}>
+										<TableCell>{task.title}</TableCell>
+										<TableCell>{task.due_date}</TableCell>
+										<TableCell>
+											<Badge variant="secondary">
+												{task.task_status.replaceAll("_", " ")}
+											</Badge>
+										</TableCell>
+										<TableCell>
+											<Link
+												href={`/cases/${task.case}`}
+												className="text-primary hover:underline"
+											>
+												View case
+											</Link>
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					)}
+				</CardContent>
+			</Card>
+
+			<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-sm text-muted-foreground">
+							Adviser workload
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						{!reporting || reporting.adviser_workload.length === 0 ? (
+							<p className="text-sm text-muted-foreground">
+								{reporting ? "No advisers yet." : "Loading..."}
+							</p>
+						) : (
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead>Adviser</TableHead>
+										<TableHead>Active cases</TableHead>
+										<TableHead>Pending tasks</TableHead>
+										<TableHead>Overdue</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{reporting.adviser_workload.map((row) => (
+										<TableRow key={row.adviser_uid}>
+											<TableCell>{row.adviser_name}</TableCell>
+											<TableCell>{row.active_cases}</TableCell>
+											<TableCell>{row.pending_tasks}</TableCell>
+											<TableCell>
+												{row.overdue_tasks > 0 ? (
+													<Badge variant="destructive">
+														{row.overdue_tasks}
+													</Badge>
+												) : (
+													0
+												)}
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						)}
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-sm text-muted-foreground">
+							Course interest
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						{!reporting || reporting.course_interest.length === 0 ? (
+							<p className="text-sm text-muted-foreground">
+								{reporting ? "No recommendations yet." : "Loading..."}
+							</p>
+						) : (
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead>Course</TableHead>
+										<TableHead>Provider</TableHead>
+										<TableHead>Recommendations</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{reporting.course_interest.map((row) => (
+										<TableRow key={row.course_uid}>
+											<TableCell>{row.course_name}</TableCell>
+											<TableCell>{row.provider_name}</TableCell>
+											<TableCell>{row.recommendation_count}</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						)}
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	);
 }

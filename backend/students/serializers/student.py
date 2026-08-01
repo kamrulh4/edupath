@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from students.models import Student
+from students.utils import apply_consent_timestamps
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -35,7 +36,13 @@ class StudentSerializer(serializers.ModelSerializer):
             "uid",
             "organisation",
             "user",
+            "ai_processing_consent_at",
+            "communication_consent_at",
             "status",
             "created_at",
             "updated_at",
         )
+
+    def update(self, instance, validated_data):
+        validated_data = apply_consent_timestamps(instance, validated_data)
+        return super().update(instance, validated_data)

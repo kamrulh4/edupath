@@ -50,6 +50,20 @@ class StudentDetailView(StandardResponseMixin, generics.RetrieveUpdateDestroyAPI
     def get_queryset(self):
         return Student.objects.filter(organisation=self.request.user.organisation)
 
+    def perform_update(self, serializer):
+        consent_fields = {"ai_processing_consent", "communication_consent"}
+        changed_consent = consent_fields & set(serializer.validated_data.keys())
+        student = serializer.save()
+        if changed_consent:
+            log_action(
+                self.request,
+                "STUDENT_CONSENT_UPDATED",
+                student,
+                details={
+                    field: getattr(student, field) for field in changed_consent
+                },
+            )
+
 
 class StudentInviteView(StandardResponseMixin, generics.GenericAPIView):
     """Creates portal login access (a User) for an existing Student."""
