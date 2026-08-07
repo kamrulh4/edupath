@@ -50,7 +50,11 @@ export default function PortalOverviewPage() {
 				method: "PATCH",
 				body: JSON.stringify({ [field]: !profile[field] }),
 			});
-			setProfile({ ...profile, ...results });
+			// Functional form, not {...profile, ...results}: /portal/consent/
+			// only returns the 4 consent fields, and merging against the
+			// closure-captured `profile` can lose a concurrent update if both
+			// toggles are clicked before the first request resolves.
+			setProfile((prev) => (prev ? { ...prev, ...results } : prev));
 			toast.success("Consent updated.");
 		} catch (err) {
 			toast.error(

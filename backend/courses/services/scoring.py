@@ -33,6 +33,23 @@ def _parse_intake_date(value):
     return None
 
 
+def _sanitize_weights(scoring_weights) -> dict:
+    """OrganisationSettings.scoring_weights is an unvalidated JSONField an
+    org admin can edit directly via the API - drop anything that isn't a
+    plain non-negative number so a bad value (a string, a negative, null)
+    can't crash scoring for every course in the case."""
+
+    if not isinstance(scoring_weights, dict):
+        return {}
+    clean = {}
+    for key, value in scoring_weights.items():
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)) and value >= 0:
+            clean[key] = value
+    return clean
+
+
 def score_course_for_student(student, course, scoring_weights=None):
     """Returns (score, score_breakdown, unmet_requirements, recommendation_notes,
     risk_notes) for one course against one student - see DEFAULT_SCORING_WEIGHTS
@@ -50,7 +67,9 @@ def score_course_for_student(student, course, scoring_weights=None):
     required_english = _first_number(course.english_requirements)
     student_english = None
     if isinstance(student.english_scores, dict):
-        student_english = _first_number(str(student.english_scores.get("overall_score", "")))
+        student_english = _first_number(
+            str(student.english_scores.get("overall_score", ""))
+        )
     if required_english is None:
         english_score = 100.0
     elif student_english is None:
@@ -60,7 +79,9 @@ def score_course_for_student(student, course, scoring_weights=None):
         )
     elif student_english >= required_english:
         english_score = 100.0
-        positives.append(f"the student's English score ({student_english}) meets the requirement")
+        positives.append(
+            f"the student's English score ({student_english}) meets the requirement"
+        )
     else:
         gap = required_english - student_english
         english_score = max(0.0, 100 - gap * 40)
@@ -80,7 +101,7 @@ def score_course_for_student(student, course, scoring_weights=None):
 
     # Budget - soft preference, drawn from free-text goals_and_preferences.
     student_budget = _first_number(student.goals_and_preferences)
-    if student_budget is None or course.tuition_fee is None:
+    if not student_budget or course.tuition_fee is None:
         budget_score = 100.0
     else:
         tuition = float(course.tuition_fee)
@@ -124,15 +145,16 @@ def score_course_for_student(student, course, scoring_weights=None):
     factors["intake"] = round(intake_score, 1)
 
     # Data freshness.
-    if not course.last_verification_date or (
-        date.today() - course.last_verification_date
-    ).days > STALE_VERIFICATION_DAYS:
+    if (
+        not course.last_verification_date
+        or (date.today() - course.last_verification_date).days > STALE_VERIFICATION_DAYS
+    ):
         risks.append(
             "This course's information hasn't been verified recently - "
             "confirm details before submission."
         )
 
-    weights = {**DEFAULT_SCORING_WEIGHTS, **(scoring_weights or {})}
+    weights = {**DEFAULT_SCORING_WEIGHTS, **_sanitize_weights(scoring_weights)}
     total_weight = sum(weights.get(key, 0) for key in factors) or 1
     overall = sum(factors[key] * weights.get(key, 0) for key in factors) / total_weight
 

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from students.models import Document, ExtractedField
+from students.services.profile_sync import sync_verified_field_to_profile
 
 
 class ExtractedFieldSerializer(serializers.ModelSerializer):
@@ -28,3 +29,14 @@ class ExtractedFieldSerializer(serializers.ModelSerializer):
         if value.case.student.organisation_id != request.user.organisation_id:
             raise serializers.ValidationError("Document does not belong to your organisation.")
         return value
+
+    def update(self, instance, validated_data):
+        was_verified = instance.is_verified
+        instance = super().update(instance, validated_data)
+        # The dedicated /verify/ action triggers this itself (it edits the
+        # model directly, bypassing this serializer) - this covers the
+        # generic PATCH path too, so profile sync can't be silently skipped
+        # depending on which endpoint an adviser happens to use.
+        if instance.is_verified and not was_verified:
+            sync_verified_field_to_profile(instance)
+        return instance

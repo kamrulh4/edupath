@@ -46,6 +46,18 @@ def _extract_and_apply(document):
     if needs_classification:
         result = classify_and_extract_fields(document)
         detected_type = result["document_type"]
+        # Gemini's structured output is schema-constrained but not
+        # guaranteed - never trust an external value enough to feed it
+        # straight into DocumentType(...), which raises ValueError on
+        # anything unrecognized and would crash the whole task.
+        if detected_type not in DocumentType.values:
+            logger.warning(
+                "classify_and_extract_fields returned an unrecognized "
+                "document_type %r for document %s - leaving unclassified.",
+                detected_type,
+                document.id,
+            )
+            detected_type = None
     else:
         detected_type = None
         result = extract_fields_from_document(document)
@@ -181,9 +193,13 @@ def send_deadline_reminders():
     before a task's due date. Silently does nothing per-task if no email
     backend is configured yet (see EMAIL_BACKEND in settings)."""
 
+    # <=, not ==: an exact-date match means a single missed Beat run (a
+    # deploy, a restart, the broker being down - all of which have actually
+    # happened during this project) permanently skips that task's reminder,
+    # since tomorrow's target_date can never match a fixed due_date again.
     target_date = timezone.now().date() + timedelta(days=REMINDER_LEAD_DAYS)
     tasks = Task.objects.filter(
-        due_date=target_date,
+        due_date__lte=target_date,
         task_status__in=OPEN_TASK_STATUSES,
         reminder_sent_at__isnull=True,
     ).select_related("assignee", "case__student")
@@ -196,23 +212,29 @@ def send_deadline_reminders():
         if student.communication_consent and student.email:
             recipients.append(student.email)
 
-        if recipients:
-            try:
-                send_mail(
-                    subject=f'Reminder: "{task.title}" due {task.due_date}',
-                    message=(
-                        f'This is a reminder that "{task.title}" for '
-                        f"{student.first_name} {student.last_name} is due on "
-                        f"{task.due_date}."
-                    ),
-                    from_email=None,
-                    recipient_list=recipients,
-                    fail_silently=True,
-                )
-            except Exception:
-                logger.exception(
-                    "send_deadline_reminders: failed to email for task %s", task.id
-                )
+        # Nobody to notify yet (no assignee, no consent) - leave
+        # reminder_sent_at unset so this task is retried on a later run
+        # instead of being silently and permanently skipped.
+        if not recipients:
+            continue
+
+        try:
+            send_mail(
+                subject=f'Reminder: "{task.title}" due {task.due_date}',
+                message=(
+                    f'This is a reminder that "{task.title}" for '
+                    f"{student.first_name} {student.last_name} is due on "
+                    f"{task.due_date}."
+                ),
+                from_email=None,
+                recipient_list=recipients,
+                fail_silently=True,
+            )
+        except Exception:
+            logger.exception(
+                "send_deadline_reminders: failed to email for task %s", task.id
+            )
+            continue
 
         task.reminder_sent_at = timezone.now()
         task.save(update_fields=["reminder_sent_at"])

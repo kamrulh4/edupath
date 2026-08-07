@@ -57,10 +57,17 @@ def fill_application_form(template, student) -> tuple[bytes, list[str]]:
 
     writer = PdfWriter()
     writer.append(reader)
-    if writer.get_fields():
-        writer.set_need_appearances_writer(True)
-        for page in writer.pages:
-            writer.update_page_form_field_values(page, values)
+    if not writer.get_fields():
+        # The fields existed on the reader (checked above) but didn't
+        # survive the copy - fail loudly rather than silently hand back an
+        # unfilled PDF that looks like a successful draft.
+        raise FormFillError(
+            "Could not preserve this template's fillable fields while "
+            "generating the draft - try a different template PDF."
+        )
+    writer.set_need_appearances_writer(True)
+    for page in writer.pages:
+        writer.update_page_form_field_values(page, values)
 
     output = io.BytesIO()
     writer.write(output)

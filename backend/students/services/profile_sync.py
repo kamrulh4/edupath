@@ -1,10 +1,18 @@
 import logging
 
+from django.utils import timezone
 from dateutil import parser as date_parser
 
 from students.choices import DocumentType
 
 logger = logging.getLogger(__name__)
+
+# A date_of_birth outside this range is almost certainly a mis-parse (e.g.
+# dateutil's fuzzy=True turning a stray "5" into "today's date with day=5")
+# rather than a real birth date - reject it instead of corrupting the
+# profile with a confident-looking wrong value.
+MIN_BIRTH_YEAR = 1920
+MAX_STUDENT_AGE_HEADROOM_YEARS = 10
 
 # Direct scalar fields on Student that a verified PASSPORT field can update.
 PASSPORT_FIELD_TO_STUDENT_ATTR = {
@@ -82,7 +90,18 @@ def _sync_academic_field(student, document, field_name, value):
 
 def _parse_date(value):
     try:
-        return date_parser.parse(value, fuzzy=True).date()
+        parsed = date_parser.parse(value, fuzzy=True).date()
     except (ValueError, OverflowError):
         logger.warning("Could not parse date value for profile sync: %r", value)
         return None
+
+    latest_plausible_year = timezone.now().year - MAX_STUDENT_AGE_HEADROOM_YEARS
+    if not (MIN_BIRTH_YEAR <= parsed.year <= latest_plausible_year):
+        logger.warning(
+            "Parsed date of birth %s (from %r) is outside a plausible range - "
+            "skipping sync rather than risk a mis-parse.",
+            parsed,
+            value,
+        )
+        return None
+    return parsed
