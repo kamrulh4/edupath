@@ -1,6 +1,8 @@
 """Serializers for the signup / login flow."""
 
+from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -24,6 +26,16 @@ class RegisterSerializer(serializers.Serializer):
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def validate_password(self, value):
+        # AUTH_PASSWORD_VALIDATORS is configured in settings but Django only
+        # auto-applies it to its own auth forms - a DRF serializer has to
+        # call it explicitly, which nothing here previously did.
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages)) from exc
         return value
 
     def create(self, validated_data):
@@ -72,6 +84,11 @@ class SetPasswordSerializer(serializers.Serializer):
 
         if not default_token_generator.check_token(user, attrs["token"]):
             raise serializers.ValidationError("Invite link is invalid or has expired.")
+
+        try:
+            validate_password(attrs["password"], user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)}) from exc
 
         attrs["user"] = user
         return attrs
