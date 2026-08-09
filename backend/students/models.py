@@ -78,6 +78,23 @@ class Case(BaseModelWithUID):
         return f"Case for {self.student} - {self.get_stage_display()}"
 
 
+class CaseStageHistory(BaseModelWithUID):
+    """One row per stage a case has passed through - feeds the dashboard's
+    processing-time metric (time from case creation to ENROLLED)."""
+
+    case = models.ForeignKey(
+        Case, on_delete=models.CASCADE, related_name="stage_history"
+    )
+    stage = models.CharField(max_length=50, choices=CaseStage.choices)
+    entered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["entered_at"]
+
+    def __str__(self):
+        return f"{self.case} entered {self.get_stage_display()} at {self.entered_at}"
+
+
 class Document(BaseModelWithUID):
     """Stores uploaded files and preserves original copies."""
 
@@ -159,6 +176,27 @@ class Task(BaseModelWithUID):
         return f"{self.title} - {self.get_task_status_display()}"
 
 
+class TaskChecklistTemplate(BaseModelWithUID):
+    """A reusable set of tasks for a common application type (e.g. "UK
+    Undergraduate Checklist") - applying one to a case creates every item
+    as a real Task in one go, instead of adding them by hand each time.
+
+    items shape: [{"title": str, "description": str, "days_offset": int|None}]
+    days_offset is days from today for that item's due_date, or None for no
+    due date.
+    """
+
+    organisation = models.ForeignKey(
+        Organisation, on_delete=models.CASCADE, related_name="task_checklist_templates"
+    )
+    name = models.CharField(max_length=255)
+    items = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+
 class FormTemplate(BaseModelWithUID):
     """Application form template for a specific provider.
 
@@ -227,7 +265,9 @@ class Meeting(BaseModelWithUID):
 class Communication(BaseModelWithUID):
     """Messages and notices linked to a case, visible in the student portal."""
 
-    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name="communications")
+    case = models.ForeignKey(
+        Case, on_delete=models.CASCADE, related_name="communications"
+    )
     sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
 
     message_body = models.TextField()

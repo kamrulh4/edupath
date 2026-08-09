@@ -83,7 +83,7 @@ export default function DashboardPage() {
 					{organisation?.name ?? "Loading workspace..."}
 				</p>
 			</div>
-			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-sm text-muted-foreground">
@@ -132,6 +132,20 @@ export default function DashboardPage() {
 					</CardHeader>
 					<CardContent className="text-3xl font-semibold">
 						{reporting?.missing_documents_count ?? "..."}
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-sm text-muted-foreground">
+							Avg. processing time
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="text-3xl font-semibold">
+						{!reporting
+							? "..."
+							: reporting.avg_processing_time_days === null
+								? "—"
+								: `${reporting.avg_processing_time_days}d`}
 					</CardContent>
 				</Card>
 			</div>

@@ -99,3 +99,29 @@ export async function apiFetch<T>(
 
 	return data as Envelope<T>;
 }
+
+export async function downloadFile(path: string, filename: string) {
+	const token = getAccessToken();
+	const headers = new Headers();
+	if (token) headers.set("Authorization", `Bearer ${token}`);
+
+	const res = await fetch(`${API_URL}${path}`, { headers });
+	if (!res.ok) {
+		let message = "Could not download the file.";
+		try {
+			const data = (await res.json()) as ErrorEnvelope;
+			message = data.message ?? message;
+		} catch {
+			// response wasn't JSON (e.g. a plain-text error) - keep the default message
+		}
+		throw new ApiError(message, res.status, null);
+	}
+
+	const blob = await res.blob();
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = filename;
+	link.click();
+	URL.revokeObjectURL(url);
+}

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from core.models import User
-from students.models import Case, Student
+from students.models import Case, CaseStageHistory, Student
 
 
 class CaseSerializer(serializers.ModelSerializer):
@@ -45,3 +45,15 @@ class CaseSerializer(serializers.ModelSerializer):
                 "Adviser must belong to your organisation."
             )
         return value
+
+    def create(self, validated_data):
+        case = super().create(validated_data)
+        CaseStageHistory.objects.create(case=case, stage=case.stage)
+        return case
+
+    def update(self, instance, validated_data):
+        old_stage = instance.stage
+        case = super().update(instance, validated_data)
+        if case.stage != old_stage:
+            CaseStageHistory.objects.create(case=case, stage=case.stage)
+        return case

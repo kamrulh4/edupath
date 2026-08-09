@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DocumentFieldsDialog } from "@/components/document-fields-dialog";
@@ -33,7 +33,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { ApiError, apiFetch } from "@/lib/api-client";
+import { ApiError, apiFetch, downloadFile } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import type {
 	ApplicationDraft,
 	Case,
@@ -47,6 +48,7 @@ import type {
 	Recommendation,
 	Student,
 	Task,
+	TaskChecklistTemplate,
 	TaskStatus,
 	User,
 } from "@/lib/types";
@@ -102,9 +104,15 @@ function qualityFlagLabel(flag: string) {
 
 export default function CaseDetailPage() {
 	const params = useParams<{ uid: string }>();
+	const router = useRouter();
+	const { user } = useAuth();
+	const isAdmin = user?.kind === "ADMIN";
 	const [caseData, setCaseData] = useState<Case | null>(null);
 	const [student, setStudent] = useState<Student | null>(null);
 	const [adviser, setAdviser] = useState<User | null>(null);
+	const [downloadingPack, setDownloadingPack] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [deletingCase, setDeletingCase] = useState(false);
 	const [documents, setDocuments] = useState<Document[]>([]);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [uploading, setUploading] = useState(false);
@@ -117,6 +125,13 @@ export default function CaseDetailPage() {
 	const [creatingRec, setCreatingRec] = useState(false);
 	const [approvingUid, setApprovingUid] = useState<string | null>(null);
 	const [generatingRecs, setGeneratingRecs] = useState(false);
+	const [editingRec, setEditingRec] = useState<Recommendation | null>(null);
+	const [savingRecEdit, setSavingRecEdit] = useState(false);
+	const [recEditForm, setRecEditForm] = useState({
+		rank: "1",
+		score: "",
+		adviser_override_reason: "",
+	});
 	const [recForm, setRecForm] = useState({
 		course: "",
 		rank: "1",
@@ -134,6 +149,9 @@ export default function CaseDetailPage() {
 		description: "",
 		due_date: "",
 	});
+	const [checklists, setChecklists] = useState<TaskChecklistTemplate[]>([]);
+	const [selectedChecklist, setSelectedChecklist] = useState("");
+	const [applyingChecklist, setApplyingChecklist] = useState(false);
 
 	const [drafts, setDrafts] = useState<ApplicationDraft[]>([]);
 	const [templates, setTemplates] = useState<FormTemplate[]>([]);
@@ -181,6 +199,13 @@ export default function CaseDetailPage() {
 		setTasks(results);
 	}
 
+	async function loadChecklists() {
+		const { results } = await apiFetch<TaskChecklistTemplate[]>(
+			"/task-checklist-templates/?is_active=true",
+		);
+		setChecklists(results);
+	}
+
 	async function loadDrafts() {
 		const { results } = await apiFetch<ApplicationDraft[]>(
 			`/application-drafts/?case=${params.uid}`,
@@ -221,6 +246,7 @@ export default function CaseDetailPage() {
 		loadDocuments();
 		loadRecommendations();
 		loadTasks();
+		loadChecklists();
 		loadDrafts();
 		loadMeetings();
 		loadMessages();
@@ -349,6 +375,42 @@ export default function CaseDetailPage() {
 		}
 	}
 
+	function openRecEditDialog(rec: Recommendation) {
+		setEditingRec(rec);
+		setRecEditForm({
+			rank: String(rec.rank),
+			score: rec.score ?? "",
+			adviser_override_reason: rec.adviser_override_reason,
+		});
+	}
+
+	async function handleSaveRecEdit(e: FormEvent) {
+		e.preventDefault();
+		if (!editingRec) return;
+		setSavingRecEdit(true);
+		try {
+			await apiFetch<Recommendation>(`/recommendations/${editingRec.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({
+					rank: Number(recEditForm.rank),
+					score: recEditForm.score || null,
+					adviser_override_reason: recEditForm.adviser_override_reason,
+				}),
+			});
+			toast.success("Recommendation updated.");
+			setEditingRec(null);
+			loadRecommendations();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError
+					? err.message
+					: "Could not update recommendation.",
+			);
+		} finally {
+			setSavingRecEdit(false);
+		}
+	}
+
 	async function handleGenerateRecommendations() {
 		if (!caseData) return;
 		setGeneratingRecs(true);
@@ -411,6 +473,63 @@ export default function CaseDetailPage() {
 			);
 		} finally {
 			setUpdatingTaskUid(null);
+		}
+	}
+
+	async function handleApplyChecklist() {
+		if (!caseData || !selectedChecklist) return;
+		setApplyingChecklist(true);
+		try {
+			await apiFetch<Task[]>("/task-checklist-templates/apply/", {
+				method: "POST",
+				body: JSON.stringify({
+					case: caseData.uid,
+					template: selectedChecklist,
+				}),
+			});
+			toast.success("Checklist applied.");
+			setSelectedChecklist("");
+			loadTasks();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not apply checklist.",
+			);
+		} finally {
+			setApplyingChecklist(false);
+		}
+	}
+
+	async function handleDownloadPack() {
+		if (!caseData) return;
+		setDownloadingPack(true);
+		try {
+			await downloadFile(
+				`/cases/${caseData.uid}/application-pack/`,
+				`case-${caseData.uid}-application-pack.zip`,
+			);
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError
+					? err.message
+					: "Could not download the application pack.",
+			);
+		} finally {
+			setDownloadingPack(false);
+		}
+	}
+
+	async function handleDeleteCase() {
+		if (!caseData) return;
+		setDeletingCase(true);
+		try {
+			await apiFetch(`/cases/${caseData.uid}/`, { method: "DELETE" });
+			toast.success("Case deleted.");
+			router.push("/cases");
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not delete the case.",
+			);
+			setDeletingCase(false);
 		}
 	}
 
@@ -580,23 +699,66 @@ export default function CaseDetailPage() {
 
 	return (
 		<div className="flex flex-col gap-6">
-			<div>
-				<h1 className="text-2xl font-semibold">
-					Case for{" "}
-					<Link href={`/students/${student.uid}`} className="hover:underline">
-						{student.first_name} {student.last_name}
-					</Link>
-				</h1>
-				<div className="mt-1 flex items-center gap-2">
-					<Badge variant="secondary">
-						{caseData.stage.replaceAll("_", " ")}
-					</Badge>
-					<span className="text-sm text-muted-foreground">
-						Adviser:{" "}
-						{adviser
-							? `${adviser.first_name} ${adviser.last_name}`
-							: "Unassigned"}
-					</span>
+			<div className="flex items-start justify-between">
+				<div>
+					<h1 className="text-2xl font-semibold">
+						Case for{" "}
+						<Link href={`/students/${student.uid}`} className="hover:underline">
+							{student.first_name} {student.last_name}
+						</Link>
+					</h1>
+					<div className="mt-1 flex items-center gap-2">
+						<Badge variant="secondary">
+							{caseData.stage.replaceAll("_", " ")}
+						</Badge>
+						<span className="text-sm text-muted-foreground">
+							Adviser:{" "}
+							{adviser
+								? `${adviser.first_name} ${adviser.last_name}`
+								: "Unassigned"}
+						</span>
+					</div>
+				</div>
+				<div className="flex items-center gap-2">
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={downloadingPack}
+						onClick={handleDownloadPack}
+					>
+						{downloadingPack ? "Preparing..." : "Download application pack"}
+					</Button>
+					{isAdmin && (
+						<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+							<DialogTrigger
+								render={
+									<Button size="sm" variant="destructive">
+										Delete case
+									</Button>
+								}
+							/>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>Delete this case?</DialogTitle>
+								</DialogHeader>
+								<p className="text-sm text-muted-foreground">
+									This permanently deletes the case for {student.first_name}{" "}
+									{student.last_name} along with all of its documents, tasks,
+									recommendations, drafts, meetings and messages. This cannot be
+									undone.
+								</p>
+								<DialogFooter>
+									<Button
+										variant="destructive"
+										disabled={deletingCase}
+										onClick={handleDeleteCase}
+									>
+										{deletingCase ? "Deleting..." : "Delete permanently"}
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+					)}
 				</div>
 			</div>
 
@@ -844,12 +1006,24 @@ export default function CaseDetailPage() {
 									<TableHead>Notes</TableHead>
 									<TableHead>Requirements &amp; risks</TableHead>
 									<TableHead>Status</TableHead>
+									<TableHead>Actions</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
 								{recommendations.map((rec) => (
 									<TableRow key={rec.uid}>
-										<TableCell>#{rec.rank}</TableCell>
+										<TableCell>
+											#{rec.rank}
+											{rec.adviser_override_reason && (
+												<Badge
+													variant="secondary"
+													className="ml-1"
+													title={rec.adviser_override_reason}
+												>
+													Overridden
+												</Badge>
+											)}
+										</TableCell>
 										<TableCell>{courseLabel(rec.course)}</TableCell>
 										<TableCell>{rec.score ?? "—"}</TableCell>
 										<TableCell
@@ -895,6 +1069,15 @@ export default function CaseDetailPage() {
 												</Button>
 											)}
 										</TableCell>
+										<TableCell>
+											<Button
+												size="sm"
+												variant="ghost"
+												onClick={() => openRecEditDialog(rec)}
+											>
+												Edit
+											</Button>
+										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
@@ -903,53 +1086,149 @@ export default function CaseDetailPage() {
 				</CardContent>
 			</Card>
 
+			<Dialog
+				open={!!editingRec}
+				onOpenChange={(open) => !open && setEditingRec(null)}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Edit recommendation</DialogTitle>
+					</DialogHeader>
+					<form className="flex flex-col gap-4" onSubmit={handleSaveRecEdit}>
+						<div className="grid grid-cols-2 gap-4">
+							<div className="flex flex-col gap-2">
+								<Label>Rank</Label>
+								<Input
+									type="number"
+									min="1"
+									value={recEditForm.rank}
+									onChange={(e) =>
+										setRecEditForm({ ...recEditForm, rank: e.target.value })
+									}
+								/>
+							</div>
+							<div className="flex flex-col gap-2">
+								<Label>Score (0-100)</Label>
+								<Input
+									type="number"
+									step="0.01"
+									value={recEditForm.score}
+									onChange={(e) =>
+										setRecEditForm({ ...recEditForm, score: e.target.value })
+									}
+								/>
+							</div>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>Override reason</Label>
+							<Input
+								placeholder="Why is this different from the auto-generated result?"
+								value={recEditForm.adviser_override_reason}
+								onChange={(e) =>
+									setRecEditForm({
+										...recEditForm,
+										adviser_override_reason: e.target.value,
+									})
+								}
+							/>
+							<p className="text-xs text-muted-foreground">
+								Required context for the record when you change the rank or
+								score from what the scoring engine produced.
+							</p>
+						</div>
+						<DialogFooter>
+							<Button type="submit" disabled={savingRecEdit}>
+								{savingRecEdit ? "Saving..." : "Save changes"}
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
+
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between">
 					<CardTitle>Tasks</CardTitle>
-					<Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
-						<DialogTrigger render={<Button size="sm">Add task</Button>} />
-						<DialogContent>
-							<DialogHeader>
-								<DialogTitle>Add a task</DialogTitle>
-							</DialogHeader>
-							<form className="flex flex-col gap-4" onSubmit={handleCreateTask}>
-								<div className="flex flex-col gap-2">
-									<Label>Title</Label>
-									<Input
-										required
-										value={taskForm.title}
-										onChange={(e) =>
-											setTaskForm({ ...taskForm, title: e.target.value })
-										}
-									/>
-								</div>
-								<div className="flex flex-col gap-2">
-									<Label>Description</Label>
-									<Input
-										value={taskForm.description}
-										onChange={(e) =>
-											setTaskForm({ ...taskForm, description: e.target.value })
-										}
-									/>
-								</div>
-								<div className="flex flex-col gap-2">
-									<Label>Due date</Label>
-									<Input
-										type="date"
-										value={taskForm.due_date}
-										onChange={(e) =>
-											setTaskForm({ ...taskForm, due_date: e.target.value })
-										}
-									/>
-								</div>
-								<DialogFooter>
-									<Button type="submit" disabled={creatingTask}>
-										{creatingTask ? "Adding..." : "Add task"}
-									</Button>
-								</DialogFooter>
-							</form>
-						</DialogContent>
-					</Dialog>
+					<div className="flex items-center gap-2">
+						{checklists.length > 0 && (
+							<>
+								<Select
+									value={selectedChecklist}
+									onValueChange={(value) =>
+										value && setSelectedChecklist(value)
+									}
+								>
+									<SelectTrigger className="w-56">
+										<SelectValue placeholder="Apply checklist template..." />
+									</SelectTrigger>
+									<SelectContent>
+										{checklists.map((checklist) => (
+											<SelectItem key={checklist.uid} value={checklist.uid}>
+												{checklist.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={!selectedChecklist || applyingChecklist}
+									onClick={handleApplyChecklist}
+								>
+									{applyingChecklist ? "Applying..." : "Apply"}
+								</Button>
+							</>
+						)}
+						<Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+							<DialogTrigger render={<Button size="sm">Add task</Button>} />
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>Add a task</DialogTitle>
+								</DialogHeader>
+								<form
+									className="flex flex-col gap-4"
+									onSubmit={handleCreateTask}
+								>
+									<div className="flex flex-col gap-2">
+										<Label>Title</Label>
+										<Input
+											required
+											value={taskForm.title}
+											onChange={(e) =>
+												setTaskForm({ ...taskForm, title: e.target.value })
+											}
+										/>
+									</div>
+									<div className="flex flex-col gap-2">
+										<Label>Description</Label>
+										<Input
+											value={taskForm.description}
+											onChange={(e) =>
+												setTaskForm({
+													...taskForm,
+													description: e.target.value,
+												})
+											}
+										/>
+									</div>
+									<div className="flex flex-col gap-2">
+										<Label>Due date</Label>
+										<Input
+											type="date"
+											value={taskForm.due_date}
+											onChange={(e) =>
+												setTaskForm({ ...taskForm, due_date: e.target.value })
+											}
+										/>
+									</div>
+									<DialogFooter>
+										<Button type="submit" disabled={creatingTask}>
+											{creatingTask ? "Adding..." : "Add task"}
+										</Button>
+									</DialogFooter>
+								</form>
+							</DialogContent>
+						</Dialog>
+					</div>
 				</CardHeader>
 				<CardContent>
 					{tasks.length === 0 ? (

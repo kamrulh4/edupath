@@ -32,5 +32,6 @@ class OrganisationSettingsSerializer(serializers.ModelSerializer):
             "provider_preferences",
             "scoring_weights",
             "workflow_config",
+            "data_retention_days",
         )
         read_only_fields = ("id", "uid", "organisation")

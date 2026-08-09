@@ -6,6 +6,10 @@ urlpatterns = [
     path("documents/", include("students.urls.document")),
     path("extracted-fields/", include("students.urls.extracted_field")),
     path("tasks/", include("students.urls.task")),
+    path(
+        "task-checklist-templates/",
+        include("students.urls.task_checklist_template"),
+    ),
     path("form-templates/", include("students.urls.form_template")),
     path("application-drafts/", include("students.urls.application_draft")),
     path("meetings/", include("students.urls.meeting")),

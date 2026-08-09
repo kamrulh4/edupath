@@ -38,7 +38,12 @@ import {
 } from "@/components/ui/table";
 import { ApiError, apiFetch } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { Organisation, User, UserKind } from "@/lib/types";
+import type {
+	Organisation,
+	OrganisationSettings,
+	User,
+	UserKind,
+} from "@/lib/types";
 
 const MEMBER_KINDS: UserKind[] = ["ADMIN", "ADVISER", "ADMISSION_OFFICER"];
 
@@ -51,6 +56,10 @@ export default function OrganisationPage() {
 	const [address, setAddress] = useState("");
 	const [description, setDescription] = useState("");
 	const [savingOrg, setSavingOrg] = useState(false);
+
+	const [settings, setSettings] = useState<OrganisationSettings | null>(null);
+	const [retentionDays, setRetentionDays] = useState("");
+	const [savingSettings, setSavingSettings] = useState(false);
 
 	const [members, setMembers] = useState<User[]>([]);
 	const [memberForm, setMemberForm] = useState({
@@ -76,10 +85,23 @@ export default function OrganisationPage() {
 		setMembers(results);
 	}
 
+	async function loadSettings() {
+		const { results } = await apiFetch<OrganisationSettings>(
+			"/organisation/settings/",
+		);
+		setSettings(results);
+		setRetentionDays(
+			results.data_retention_days != null
+				? String(results.data_retention_days)
+				: "",
+		);
+	}
+
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount only
 	useEffect(() => {
 		loadOrganisation();
 		loadMembers();
+		loadSettings();
 	}, []);
 
 	async function handleOrgSubmit(e: FormEvent) {
@@ -96,6 +118,28 @@ export default function OrganisationPage() {
 			toast.error(err instanceof ApiError ? err.message : "Update failed.");
 		} finally {
 			setSavingOrg(false);
+		}
+	}
+
+	async function handleSettingsSubmit(e: FormEvent) {
+		e.preventDefault();
+		setSavingSettings(true);
+		try {
+			const { results } = await apiFetch<OrganisationSettings>(
+				"/organisation/settings/",
+				{
+					method: "PATCH",
+					body: JSON.stringify({
+						data_retention_days: retentionDays ? Number(retentionDays) : null,
+					}),
+				},
+			);
+			setSettings(results);
+			toast.success("Data retention setting updated.");
+		} catch (err) {
+			toast.error(err instanceof ApiError ? err.message : "Update failed.");
+		} finally {
+			setSavingSettings(false);
 		}
 	}
 
@@ -169,6 +213,44 @@ export default function OrganisationPage() {
 						{isAdmin && (
 							<Button type="submit" disabled={savingOrg} className="w-fit">
 								{savingOrg ? "Saving..." : "Save changes"}
+							</Button>
+						)}
+					</form>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Data retention</CardTitle>
+					<CardDescription>
+						{isAdmin
+							? 'Documented policy only - cases are never deleted automatically. Use the "Delete case" action on a case to remove it and its data manually once it\'s past this window.'
+							: "Read-only for your role."}
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form className="flex flex-col gap-4" onSubmit={handleSettingsSubmit}>
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="retention_days">Retention period (days)</Label>
+							<Input
+								id="retention_days"
+								type="number"
+								min="1"
+								disabled={!isAdmin}
+								placeholder="No limit set"
+								className="max-w-xs"
+								value={retentionDays}
+								onChange={(e) => setRetentionDays(e.target.value)}
+							/>
+							<p className="text-xs text-muted-foreground">
+								{settings?.data_retention_days
+									? `Cases older than ${settings.data_retention_days} days should be reviewed for deletion.`
+									: "No retention limit is currently set."}
+							</p>
+						</div>
+						{isAdmin && (
+							<Button type="submit" disabled={savingSettings} className="w-fit">
+								{savingSettings ? "Saving..." : "Save changes"}
 							</Button>
 						)}
 					</form>

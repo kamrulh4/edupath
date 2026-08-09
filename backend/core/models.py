@@ -38,6 +38,9 @@ class OrganisationSettings(BaseModelWithUID):
     provider_preferences = models.JSONField(default=list, blank=True)
     scoring_weights = models.JSONField(default=dict, blank=True)
     workflow_config = models.JSONField(default=dict, blank=True)
+    # Documented retention policy only - no automated deletion job reads
+    # this yet. Cases must be deleted manually (see CaseDetailView DELETE).
+    data_retention_days = models.PositiveIntegerField(null=True, blank=True)
 
 
 class UserManager(BaseUserManager):

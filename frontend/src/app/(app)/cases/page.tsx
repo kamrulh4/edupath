@@ -14,6 +14,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -48,14 +49,23 @@ export default function CasesPage() {
 	const [members, setMembers] = useState<User[]>([]);
 	const [stageFilter, setStageFilter] = useState<string>("ALL");
 	const [adviserFilter, setAdviserFilter] = useState<string>("ALL");
+	const [providerFilter, setProviderFilter] = useState("");
+	const [missingDocumentsOnly, setMissingDocumentsOnly] = useState(false);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [creating, setCreating] = useState(false);
 	const [form, setForm] = useState({ student: "", adviser: "" });
 
-	async function loadCases(stage: string, adviser: string) {
+	async function loadCases(
+		stage: string,
+		adviser: string,
+		provider: string,
+		missingDocuments: boolean,
+	) {
 		const params = new URLSearchParams();
 		if (stage !== "ALL") params.set("stage", stage);
 		if (adviser !== "ALL") params.set("adviser", adviser);
+		if (provider) params.set("provider", provider);
+		if (missingDocuments) params.set("missing_documents", "1");
 		const suffix = params.toString() ? `?${params.toString()}` : "";
 		const { results } = await apiFetch<Case[]>(`/cases/${suffix}`);
 		setCases(results);
@@ -63,7 +73,7 @@ export default function CasesPage() {
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount only
 	useEffect(() => {
-		loadCases(stageFilter, adviserFilter);
+		loadCases(stageFilter, adviserFilter, providerFilter, missingDocumentsOnly);
 		apiFetch<Student[]>("/students/").then(({ results }) =>
 			setStudents(results),
 		);
@@ -86,13 +96,23 @@ export default function CasesPage() {
 	async function handleStageFilterChange(value: string | null) {
 		const stage = value ?? "ALL";
 		setStageFilter(stage);
-		loadCases(stage, adviserFilter);
+		loadCases(stage, adviserFilter, providerFilter, missingDocumentsOnly);
 	}
 
 	async function handleAdviserFilterChange(value: string | null) {
 		const adviser = value ?? "ALL";
 		setAdviserFilter(adviser);
-		loadCases(stageFilter, adviser);
+		loadCases(stageFilter, adviser, providerFilter, missingDocumentsOnly);
+	}
+
+	async function handleProviderFilterSubmit(e: FormEvent) {
+		e.preventDefault();
+		loadCases(stageFilter, adviserFilter, providerFilter, missingDocumentsOnly);
+	}
+
+	async function handleMissingDocumentsToggle(checked: boolean) {
+		setMissingDocumentsOnly(checked);
+		loadCases(stageFilter, adviserFilter, providerFilter, checked);
 	}
 
 	async function handleCreate(e: FormEvent) {
@@ -113,7 +133,12 @@ export default function CasesPage() {
 			toast.success("Case created.");
 			setForm({ student: "", adviser: "" });
 			setDialogOpen(false);
-			loadCases(stageFilter, adviserFilter);
+			loadCases(
+				stageFilter,
+				adviserFilter,
+				providerFilter,
+				missingDocumentsOnly,
+			);
 		} catch (err) {
 			toast.error(
 				err instanceof ApiError ? err.message : "Could not create case.",
@@ -234,6 +259,28 @@ export default function CasesPage() {
 							))}
 						</SelectContent>
 					</Select>
+					<form
+						className="flex items-center gap-2"
+						onSubmit={handleProviderFilterSubmit}
+					>
+						<Input
+							className="w-56"
+							placeholder="Filter by provider"
+							value={providerFilter}
+							onChange={(e) => setProviderFilter(e.target.value)}
+						/>
+						<Button type="submit" variant="outline" size="sm">
+							Filter
+						</Button>
+					</form>
+					<Button
+						type="button"
+						variant={missingDocumentsOnly ? "default" : "outline"}
+						size="sm"
+						onClick={() => handleMissingDocumentsToggle(!missingDocumentsOnly)}
+					>
+						Missing documents only
+					</Button>
 				</div>
 				<Table>
 					<TableHeader>

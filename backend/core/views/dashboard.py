@@ -10,8 +10,8 @@ from core.choices import UserKind
 from core.models import User
 from core.permissions import HasRole
 from courses.models import Recommendation
-from students.choices import DocumentStatus, TaskStatus
-from students.models import Case, Document, Task
+from students.choices import CaseStage, DocumentStatus, TaskStatus
+from students.models import Case, CaseStageHistory, Document, Task
 from students.serializers.task import TaskSerializer
 
 IsOrganisationStaff = HasRole(
@@ -56,9 +56,7 @@ class DashboardReportingView(StandardResponseMixin, generics.GenericAPIView):
             .order_by("due_date")[:10]
         )
 
-        advisers = User.objects.filter(
-            organisation=organisation, kind=UserKind.ADVISER
-        )
+        advisers = User.objects.filter(organisation=organisation, kind=UserKind.ADVISER)
         adviser_workload = [
             {
                 "adviser_uid": str(adviser.uid),
@@ -81,6 +79,8 @@ class DashboardReportingView(StandardResponseMixin, generics.GenericAPIView):
             .order_by("-recommendation_count")[:10]
         )
 
+        avg_processing_time_days = self._average_processing_time_days(organisation)
+
         return Response(
             {
                 "missing_documents_count": missing_documents_count,
@@ -97,5 +97,33 @@ class DashboardReportingView(StandardResponseMixin, generics.GenericAPIView):
                     }
                     for row in course_interest
                 ],
+                "avg_processing_time_days": avg_processing_time_days,
             }
         )
+
+    @staticmethod
+    def _average_processing_time_days(organisation):
+        """Days from case creation to first reaching ENROLLED, averaged
+        across every case in the org that's gotten there. Uses the first
+        ENROLLED entry per case in case a case ever moved out and back in."""
+
+        entries = (
+            CaseStageHistory.objects.filter(
+                case__student__organisation=organisation,
+                stage=CaseStage.ENROLLED,
+            )
+            .select_related("case")
+            .order_by("case_id", "entered_at")
+        )
+
+        seen_case_ids = set()
+        processing_days = []
+        for entry in entries:
+            if entry.case_id in seen_case_ids:
+                continue
+            seen_case_ids.add(entry.case_id)
+            processing_days.append((entry.entered_at - entry.case.created_at).days)
+
+        if not processing_days:
+            return None
+        return round(sum(processing_days) / len(processing_days), 1)

@@ -41,6 +41,7 @@ export type OrganisationSettings = {
 	provider_preferences: unknown[];
 	scoring_weights: Record<string, unknown>;
 	workflow_config: Record<string, unknown>;
+	data_retention_days: number | null;
 };
 
 export type Student = {
@@ -232,6 +233,24 @@ export type FormTemplate = {
 	updated_at: string;
 };
 
+export type TaskChecklistItem = {
+	title: string;
+	description: string;
+	days_offset: number | null;
+};
+
+export type TaskChecklistTemplate = {
+	id: number;
+	uid: string;
+	organisation: number;
+	name: string;
+	items: TaskChecklistItem[];
+	is_active: boolean;
+	status: string;
+	created_at: string;
+	updated_at: string;
+};
+
 export type ApplicationDraft = {
 	id: number;
 	uid: string;
@@ -295,4 +314,5 @@ export type DashboardReporting = {
 	upcoming_deadlines: Task[];
 	adviser_workload: AdviserWorkload[];
 	course_interest: CourseInterest[];
+	avg_processing_time_days: number | null;
 };
