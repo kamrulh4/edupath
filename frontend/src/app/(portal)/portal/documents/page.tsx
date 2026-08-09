@@ -13,6 +13,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -141,13 +142,12 @@ export default function PortalDocumentsPage() {
 						<form className="flex flex-col gap-4" onSubmit={handleUpload}>
 							<div className="flex flex-col gap-2">
 								<Label>File(s)</Label>
-								<input
+								<Input
 									type="file"
 									required
 									multiple
 									accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.zip"
 									onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-									className="text-sm"
 								/>
 								<p className="text-xs text-muted-foreground">
 									Select multiple files or a .zip to upload several documents at

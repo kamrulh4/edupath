@@ -109,11 +109,10 @@ export default function TemplatesPage() {
 							</div>
 							<div className="flex flex-col gap-2">
 								<Label>Template file</Label>
-								<input
+								<Input
 									type="file"
 									required
 									onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-									className="text-sm"
 								/>
 							</div>
 							<DialogFooter>

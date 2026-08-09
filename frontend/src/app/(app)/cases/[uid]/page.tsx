@@ -614,13 +614,12 @@ export default function CaseDetailPage() {
 							<form className="flex flex-col gap-4" onSubmit={handleUpload}>
 								<div className="flex flex-col gap-2">
 									<Label>File(s)</Label>
-									<input
+									<Input
 										type="file"
 										required
 										multiple
 										accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.zip"
 										onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-										className="text-sm"
 									/>
 									<p className="text-xs text-muted-foreground">
 										Select multiple files or a .zip to bulk upload - AI will
@@ -1054,10 +1053,9 @@ export default function CaseDetailPage() {
 								</p>
 								<div className="flex flex-col gap-2">
 									<Label>Draft file</Label>
-									<input
+									<Input
 										type="file"
 										onChange={(e) => setDraftFile(e.target.files?.[0] ?? null)}
-										className="text-sm"
 									/>
 								</div>
 								<div className="flex flex-col gap-2">
