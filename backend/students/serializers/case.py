@@ -1,7 +1,10 @@
 from rest_framework import serializers
 
+from core.choices import UserKind
 from core.models import User
 from students.models import Case, CaseStageHistory, Student
+
+STAFF_KINDS = (UserKind.ADMIN, UserKind.ADVISER, UserKind.ADMISSION_OFFICER)
 
 
 class CaseSerializer(serializers.ModelSerializer):
@@ -43,6 +46,10 @@ class CaseSerializer(serializers.ModelSerializer):
         if value.organisation_id != request.user.organisation_id:
             raise serializers.ValidationError(
                 "Adviser must belong to your organisation."
+            )
+        if value.kind not in STAFF_KINDS:
+            raise serializers.ValidationError(
+                "Adviser must be an admin, adviser or admission officer."
             )
         return value
 

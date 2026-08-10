@@ -43,6 +43,8 @@ const STAGES: CaseStage[] = [
 	"ENROLLED",
 ];
 
+const STAFF_KINDS = new Set(["ADMIN", "ADVISER", "ADMISSION_OFFICER"]);
+
 export default function CasesPage() {
 	const [cases, setCases] = useState<Case[]>([]);
 	const [students, setStudents] = useState<Student[]>([]);
@@ -86,6 +88,8 @@ export default function CasesPage() {
 		const student = students.find((s) => s.uid === uid);
 		return student ? `${student.first_name} ${student.last_name}` : uid;
 	}
+
+	const staffMembers = members.filter((m) => STAFF_KINDS.has(m.kind));
 
 	function adviserLabel(uid: string | null) {
 		if (!uid) return "Unassigned";
@@ -199,7 +203,7 @@ export default function CasesPage() {
 										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
-										{members.map((member) => (
+										{staffMembers.map((member) => (
 											<SelectItem key={member.uid} value={member.uid}>
 												{member.first_name} {member.last_name}
 											</SelectItem>
@@ -252,7 +256,7 @@ export default function CasesPage() {
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="ALL">All advisers</SelectItem>
-							{members.map((member) => (
+							{staffMembers.map((member) => (
 								<SelectItem key={member.uid} value={member.uid}>
 									{member.first_name} {member.last_name}
 								</SelectItem>

@@ -37,6 +37,10 @@ class CaseListCreateView(StandardResponseMixin, generics.ListCreateAPIView):
         if adviser_uid:
             queryset = queryset.filter(adviser__uid=adviser_uid)
 
+        student_uid = self.request.query_params.get("student")
+        if student_uid:
+            queryset = queryset.filter(student__uid=student_uid)
+
         provider = self.request.query_params.get("provider")
         if provider:
             queryset = queryset.filter(

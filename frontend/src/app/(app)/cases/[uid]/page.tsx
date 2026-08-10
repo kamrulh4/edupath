@@ -38,9 +38,11 @@ import { useAuth } from "@/lib/auth-context";
 import type {
 	ApplicationDraft,
 	Case,
+	CaseStage,
 	Communication,
 	Course,
 	Document,
+	DocumentStatus,
 	DocumentType,
 	FormTemplate,
 	Meeting,
@@ -52,6 +54,30 @@ import type {
 	TaskStatus,
 	User,
 } from "@/lib/types";
+
+const STAGE_LABELS: Record<CaseStage, string> = {
+	ENQUIRY: "Enquiry",
+	DOCUMENTS_PENDING: "Documents Pending",
+	SHORTLISTED: "Shortlisted",
+	PREPARED: "Prepared",
+	SUBMITTED: "Submitted",
+	ENROLLED: "Enrolled",
+};
+
+const STAGES = Object.keys(STAGE_LABELS) as CaseStage[];
+
+const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
+	PENDING: "Pending",
+	SUBMITTED: "Submitted",
+	APPROVED: "Approved",
+	REJECTED: "Rejected",
+};
+
+const DOCUMENT_STATUSES = Object.keys(
+	DOCUMENT_STATUS_LABELS,
+) as DocumentStatus[];
+
+const STAFF_KINDS = new Set(["ADMIN", "ADVISER", "ADMISSION_OFFICER"]);
 
 const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
 	SCHEDULED: "Scheduled",
@@ -110,6 +136,9 @@ export default function CaseDetailPage() {
 	const [caseData, setCaseData] = useState<Case | null>(null);
 	const [student, setStudent] = useState<Student | null>(null);
 	const [adviser, setAdviser] = useState<User | null>(null);
+	const [members, setMembers] = useState<User[]>([]);
+	const [updatingStage, setUpdatingStage] = useState(false);
+	const [updatingAdviser, setUpdatingAdviser] = useState(false);
 	const [downloadingPack, setDownloadingPack] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [deletingCase, setDeletingCase] = useState(false);
@@ -118,6 +147,7 @@ export default function CaseDetailPage() {
 	const [uploading, setUploading] = useState(false);
 	const [documentType, setDocumentType] = useState<DocumentType>("OTHER");
 	const [files, setFiles] = useState<File[]>([]);
+	const [updatingDocUid, setUpdatingDocUid] = useState<string | null>(null);
 
 	const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 	const [courses, setCourses] = useState<Course[]>([]);
@@ -148,6 +178,7 @@ export default function CaseDetailPage() {
 		title: "",
 		description: "",
 		due_date: "",
+		assignee: "",
 	});
 	const [checklists, setChecklists] = useState<TaskChecklistTemplate[]>([]);
 	const [selectedChecklist, setSelectedChecklist] = useState("");
@@ -236,12 +267,15 @@ export default function CaseDetailPage() {
 		);
 		setStudent(theStudent);
 
-		if (theCase.adviser) {
-			const { results: members } = await apiFetch<User[]>(
-				"/organisation/members/",
-			);
-			setAdviser(members.find((m) => m.uid === theCase.adviser) ?? null);
-		}
+		const { results: orgMembers } = await apiFetch<User[]>(
+			"/organisation/members/",
+		);
+		setMembers(orgMembers);
+		setAdviser(
+			theCase.adviser
+				? (orgMembers.find((m) => m.uid === theCase.adviser) ?? null)
+				: null,
+		);
 
 		loadDocuments();
 		loadRecommendations();
@@ -444,10 +478,11 @@ export default function CaseDetailPage() {
 					title: taskForm.title,
 					description: taskForm.description,
 					due_date: taskForm.due_date || null,
+					assignee: taskForm.assignee || null,
 				}),
 			});
 			toast.success("Task added.");
-			setTaskForm({ title: "", description: "", due_date: "" });
+			setTaskForm({ title: "", description: "", due_date: "", assignee: "" });
 			setTaskDialogOpen(false);
 			loadTasks();
 		} catch (err) {
@@ -499,6 +534,84 @@ export default function CaseDetailPage() {
 		}
 	}
 
+	async function handleStageChange(stage: CaseStage) {
+		if (!caseData || stage === caseData.stage) return;
+		setUpdatingStage(true);
+		try {
+			const { results } = await apiFetch<Case>(`/cases/${caseData.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ stage }),
+			});
+			setCaseData(results);
+			toast.success("Stage updated.");
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update stage.",
+			);
+		} finally {
+			setUpdatingStage(false);
+		}
+	}
+
+	async function handleAdviserChange(adviserUid: string) {
+		if (!caseData) return;
+		setUpdatingAdviser(true);
+		try {
+			const { results } = await apiFetch<Case>(`/cases/${caseData.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ adviser: adviserUid || null }),
+			});
+			setCaseData(results);
+			setAdviser(members.find((m) => m.uid === adviserUid) ?? null);
+			toast.success("Adviser updated.");
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update adviser.",
+			);
+		} finally {
+			setUpdatingAdviser(false);
+		}
+	}
+
+	async function handleDocStatusChange(
+		doc: Document,
+		docStatus: DocumentStatus,
+	) {
+		setUpdatingDocUid(doc.uid);
+		try {
+			await apiFetch<Document>(`/documents/${doc.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ doc_status: docStatus }),
+			});
+			loadDocuments();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError
+					? err.message
+					: "Could not update document status.",
+			);
+		} finally {
+			setUpdatingDocUid(null);
+		}
+	}
+
+	async function handleTaskAssigneeChange(task: Task, assigneeUid: string) {
+		setUpdatingTaskUid(task.uid);
+		try {
+			await apiFetch<Task>(`/tasks/${task.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ assignee: assigneeUid || null }),
+			});
+			loadTasks();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update assignee.",
+			);
+		} finally {
+			setUpdatingTaskUid(null);
+		}
+	}
+
 	async function handleDownloadPack() {
 		if (!caseData) return;
 		setDownloadingPack(true);
@@ -531,6 +644,12 @@ export default function CaseDetailPage() {
 			);
 			setDeletingCase(false);
 		}
+	}
+
+	function memberLabel(uid: string | null) {
+		if (!uid) return "Unassigned";
+		const member = members.find((m) => m.uid === uid);
+		return member ? `${member.first_name} ${member.last_name}` : "Unassigned";
 	}
 
 	function templateLabel(uid: string | null) {
@@ -708,15 +827,52 @@ export default function CaseDetailPage() {
 						</Link>
 					</h1>
 					<div className="mt-1 flex items-center gap-2">
-						<Badge variant="secondary">
-							{caseData.stage.replaceAll("_", " ")}
-						</Badge>
-						<span className="text-sm text-muted-foreground">
-							Adviser:{" "}
-							{adviser
-								? `${adviser.first_name} ${adviser.last_name}`
-								: "Unassigned"}
-						</span>
+						<Select
+							value={caseData.stage}
+							onValueChange={(value) =>
+								value && handleStageChange(value as CaseStage)
+							}
+						>
+							<SelectTrigger className="w-44" disabled={updatingStage}>
+								<SelectValue>
+									{(value: CaseStage | null) =>
+										value ? STAGE_LABELS[value] : ""
+									}
+								</SelectValue>
+							</SelectTrigger>
+							<SelectContent>
+								{STAGES.map((s) => (
+									<SelectItem key={s} value={s}>
+										{STAGE_LABELS[s]}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<span className="text-sm text-muted-foreground">Adviser:</span>
+						<Select
+							value={caseData.adviser ?? ""}
+							onValueChange={(value) => handleAdviserChange(value ?? "")}
+						>
+							<SelectTrigger className="w-48" disabled={updatingAdviser}>
+								<SelectValue placeholder="Unassigned">
+									{() =>
+										adviser
+											? `${adviser.first_name} ${adviser.last_name}`
+											: "Unassigned"
+									}
+								</SelectValue>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="">Unassigned</SelectItem>
+								{members
+									.filter((m) => STAFF_KINDS.has(m.kind))
+									.map((m) => (
+										<SelectItem key={m.uid} value={m.uid}>
+											{m.first_name} {m.last_name}
+										</SelectItem>
+									))}
+							</SelectContent>
+						</Select>
 					</div>
 				</div>
 				<div className="flex items-center gap-2">
@@ -850,7 +1006,31 @@ export default function CaseDetailPage() {
 										</TableCell>
 										<TableCell>{doc.document_category}</TableCell>
 										<TableCell>
-											<Badge variant="secondary">{doc.doc_status}</Badge>
+											<Select
+												value={doc.doc_status}
+												onValueChange={(value) =>
+													value &&
+													handleDocStatusChange(doc, value as DocumentStatus)
+												}
+											>
+												<SelectTrigger
+													className="w-36"
+													disabled={updatingDocUid === doc.uid}
+												>
+													<SelectValue>
+														{(value: DocumentStatus | null) =>
+															value ? DOCUMENT_STATUS_LABELS[value] : ""
+														}
+													</SelectValue>
+												</SelectTrigger>
+												<SelectContent>
+													{DOCUMENT_STATUSES.map((s) => (
+														<SelectItem key={s} value={s}>
+															{DOCUMENT_STATUS_LABELS[s]}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
 										</TableCell>
 										<TableCell>
 											<div className="flex flex-wrap gap-1">
@@ -1220,6 +1400,36 @@ export default function CaseDetailPage() {
 											}
 										/>
 									</div>
+									<div className="flex flex-col gap-2">
+										<Label>Assignee (optional)</Label>
+										<Select
+											value={taskForm.assignee}
+											onValueChange={(value) =>
+												setTaskForm({ ...taskForm, assignee: value ?? "" })
+											}
+										>
+											<SelectTrigger className="w-full">
+												<SelectValue placeholder="Unassigned">
+													{(value: string | null) => {
+														const member = members.find((m) => m.uid === value);
+														return member
+															? `${member.first_name} ${member.last_name}`
+															: "Unassigned";
+													}}
+												</SelectValue>
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="">Unassigned</SelectItem>
+												{members
+													.filter((m) => STAFF_KINDS.has(m.kind))
+													.map((m) => (
+														<SelectItem key={m.uid} value={m.uid}>
+															{m.first_name} {m.last_name}
+														</SelectItem>
+													))}
+											</SelectContent>
+										</Select>
+									</div>
 									<DialogFooter>
 										<Button type="submit" disabled={creatingTask}>
 											{creatingTask ? "Adding..." : "Add task"}
@@ -1239,6 +1449,7 @@ export default function CaseDetailPage() {
 								<TableRow>
 									<TableHead>Title</TableHead>
 									<TableHead>Due date</TableHead>
+									<TableHead>Assignee</TableHead>
 									<TableHead>Status</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -1247,6 +1458,33 @@ export default function CaseDetailPage() {
 									<TableRow key={task.uid}>
 										<TableCell>{task.title}</TableCell>
 										<TableCell>{task.due_date ?? "—"}</TableCell>
+										<TableCell>
+											<Select
+												value={task.assignee ?? ""}
+												onValueChange={(value) =>
+													handleTaskAssigneeChange(task, value ?? "")
+												}
+											>
+												<SelectTrigger
+													className="w-40"
+													disabled={updatingTaskUid === task.uid}
+												>
+													<SelectValue>
+														{(value: string | null) => memberLabel(value)}
+													</SelectValue>
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="">Unassigned</SelectItem>
+													{members
+														.filter((m) => STAFF_KINDS.has(m.kind))
+														.map((m) => (
+															<SelectItem key={m.uid} value={m.uid}>
+																{m.first_name} {m.last_name}
+															</SelectItem>
+														))}
+												</SelectContent>
+											</Select>
+										</TableCell>
 										<TableCell>
 											<Select
 												value={task.task_status}

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -10,11 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError, apiFetch } from "@/lib/api-client";
-import type { Student } from "@/lib/types";
+import type { Case, Student } from "@/lib/types";
 
 export default function StudentDetailPage() {
 	const params = useParams<{ uid: string }>();
 	const [student, setStudent] = useState<Student | null>(null);
+	const [cases, setCases] = useState<Case[]>([]);
 	const [saving, setSaving] = useState(false);
 	const [inviting, setInviting] = useState(false);
 	const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -25,6 +27,10 @@ export default function StudentDetailPage() {
 	async function load() {
 		const { results } = await apiFetch<Student>(`/students/${params.uid}/`);
 		setStudent(results);
+		const { results: theCases } = await apiFetch<Case[]>(
+			`/cases/?student=${params.uid}`,
+		);
+		setCases(theCases);
 	}
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when the uid param changes
@@ -167,6 +173,34 @@ export default function StudentDetailPage() {
 					</CardContent>
 				</Card>
 			)}
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Cases</CardTitle>
+				</CardHeader>
+				<CardContent>
+					{cases.length === 0 ? (
+						<p className="text-sm text-muted-foreground">
+							No case started for this student yet.
+						</p>
+					) : (
+						<div className="flex flex-col gap-2">
+							{cases.map((c) => (
+								<Link
+									key={c.uid}
+									href={`/cases/${c.uid}`}
+									className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted"
+								>
+									<span className="text-sm">Case</span>
+									<Badge variant="secondary">
+										{c.stage.replaceAll("_", " ")}
+									</Badge>
+								</Link>
+							))}
+						</div>
+					)}
+				</CardContent>
+			</Card>
 
 			<Card>
 				<CardHeader>
