@@ -47,6 +47,22 @@ import type {
 
 const MEMBER_KINDS: UserKind[] = ["ADMIN", "ADVISER", "ADMISSION_OFFICER"];
 
+const DEFAULT_SCORING_WEIGHTS: Record<string, number> = {
+	english: 30,
+	academic: 25,
+	budget: 15,
+	location: 15,
+	intake: 15,
+};
+
+const SCORING_FACTOR_LABELS: Record<string, string> = {
+	english: "English proficiency",
+	academic: "Academic fit",
+	budget: "Budget fit",
+	location: "Location preference",
+	intake: "Intake timing",
+};
+
 export default function OrganisationPage() {
 	const { user } = useAuth();
 	const isAdmin = user?.kind === "ADMIN";
@@ -60,6 +76,13 @@ export default function OrganisationPage() {
 	const [settings, setSettings] = useState<OrganisationSettings | null>(null);
 	const [retentionDays, setRetentionDays] = useState("");
 	const [savingSettings, setSavingSettings] = useState(false);
+
+	const [weightsForm, setWeightsForm] = useState<Record<string, string>>(
+		Object.fromEntries(
+			Object.entries(DEFAULT_SCORING_WEIGHTS).map(([k, v]) => [k, String(v)]),
+		),
+	);
+	const [savingWeights, setSavingWeights] = useState(false);
 
 	const [members, setMembers] = useState<User[]>([]);
 	const [memberForm, setMemberForm] = useState({
@@ -94,6 +117,15 @@ export default function OrganisationPage() {
 			results.data_retention_days != null
 				? String(results.data_retention_days)
 				: "",
+		);
+		const weights = { ...DEFAULT_SCORING_WEIGHTS, ...results.scoring_weights };
+		setWeightsForm(
+			Object.fromEntries(
+				Object.keys(DEFAULT_SCORING_WEIGHTS).map((key) => [
+					key,
+					String(weights[key] ?? DEFAULT_SCORING_WEIGHTS[key]),
+				]),
+			),
 		);
 	}
 
@@ -140,6 +172,32 @@ export default function OrganisationPage() {
 			toast.error(err instanceof ApiError ? err.message : "Update failed.");
 		} finally {
 			setSavingSettings(false);
+		}
+	}
+
+	async function handleSaveWeights(e: FormEvent) {
+		e.preventDefault();
+		setSavingWeights(true);
+		try {
+			const scoring_weights = Object.fromEntries(
+				Object.entries(weightsForm).map(([key, value]) => [
+					key,
+					Number(value) || 0,
+				]),
+			);
+			const { results } = await apiFetch<OrganisationSettings>(
+				"/organisation/settings/",
+				{
+					method: "PATCH",
+					body: JSON.stringify({ scoring_weights }),
+				},
+			);
+			setSettings(results);
+			toast.success("Scoring weights updated.");
+		} catch (err) {
+			toast.error(err instanceof ApiError ? err.message : "Update failed.");
+		} finally {
+			setSavingWeights(false);
 		}
 	}
 
@@ -251,6 +309,49 @@ export default function OrganisationPage() {
 						{isAdmin && (
 							<Button type="submit" disabled={savingSettings} className="w-fit">
 								{savingSettings ? "Saving..." : "Save changes"}
+							</Button>
+						)}
+					</form>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>AI scoring weights</CardTitle>
+					<CardDescription>
+						{isAdmin
+							? "Controls how the course-recommendation engine ranks courses for a student. Weights don't need to sum to 100 - they're normalized automatically."
+							: "Read-only for your role."}
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form className="flex flex-col gap-4" onSubmit={handleSaveWeights}>
+						<div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+							{Object.keys(DEFAULT_SCORING_WEIGHTS).map((key) => (
+								<div key={key} className="flex flex-col gap-2">
+									<Label htmlFor={`weight_${key}`}>
+										{SCORING_FACTOR_LABELS[key]}
+									</Label>
+									<Input
+										id={`weight_${key}`}
+										type="number"
+										min="0"
+										step="1"
+										disabled={!isAdmin}
+										value={weightsForm[key] ?? ""}
+										onChange={(e) =>
+											setWeightsForm({
+												...weightsForm,
+												[key]: e.target.value,
+											})
+										}
+									/>
+								</div>
+							))}
+						</div>
+						{isAdmin && (
+							<Button type="submit" disabled={savingWeights} className="w-fit">
+								{savingWeights ? "Saving..." : "Save changes"}
 							</Button>
 						)}
 					</form>

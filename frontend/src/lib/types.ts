@@ -309,6 +309,18 @@ export type CourseInterest = {
 	recommendation_count: number;
 };
 
+export type AuditLog = {
+	id: number;
+	uid: string;
+	actor: number | null;
+	action_type: string;
+	target_model: string;
+	target_uid: string | null;
+	details: Record<string, unknown>;
+	ip_address: string | null;
+	created_at: string;
+};
+
 export type DashboardReporting = {
 	missing_documents_count: number;
 	upcoming_deadlines: Task[];

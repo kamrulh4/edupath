@@ -31,7 +31,6 @@ class ApplicationDraftSerializer(serializers.ModelSerializer):
             "id",
             "uid",
             "missing_fields",
-            "is_approved",
             "status",
             "created_at",
             "updated_at",

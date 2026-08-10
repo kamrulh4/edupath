@@ -409,6 +409,35 @@ export default function CaseDetailPage() {
 		}
 	}
 
+	async function handleUnapproveRecommendation(rec: Recommendation) {
+		setApprovingUid(rec.uid);
+		try {
+			await apiFetch<Recommendation>(`/recommendations/${rec.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ is_approved: false }),
+			});
+			toast.success("Recommendation unapproved.");
+			loadRecommendations();
+		} catch (err) {
+			toast.error(err instanceof ApiError ? err.message : "Could not update.");
+		} finally {
+			setApprovingUid(null);
+		}
+	}
+
+	async function handleDeleteRecommendation(rec: Recommendation) {
+		setApprovingUid(rec.uid);
+		try {
+			await apiFetch(`/recommendations/${rec.uid}/`, { method: "DELETE" });
+			toast.success("Recommendation removed.");
+			loadRecommendations();
+		} catch (err) {
+			toast.error(err instanceof ApiError ? err.message : "Could not remove.");
+		} finally {
+			setApprovingUid(null);
+		}
+	}
+
 	function openRecEditDialog(rec: Recommendation) {
 		setEditingRec(rec);
 		setRecEditForm({
@@ -738,6 +767,35 @@ export default function CaseDetailPage() {
 			toast.error(
 				err instanceof ApiError ? err.message : "Could not approve draft.",
 			);
+		} finally {
+			setApprovingDraftUid(null);
+		}
+	}
+
+	async function handleUnapproveDraft(draft: ApplicationDraft) {
+		setApprovingDraftUid(draft.uid);
+		try {
+			await apiFetch<ApplicationDraft>(`/application-drafts/${draft.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ is_approved: false }),
+			});
+			toast.success("Draft unapproved.");
+			loadDrafts();
+		} catch (err) {
+			toast.error(err instanceof ApiError ? err.message : "Could not update.");
+		} finally {
+			setApprovingDraftUid(null);
+		}
+	}
+
+	async function handleDeleteDraft(draft: ApplicationDraft) {
+		setApprovingDraftUid(draft.uid);
+		try {
+			await apiFetch(`/application-drafts/${draft.uid}/`, { method: "DELETE" });
+			toast.success("Draft removed.");
+			loadDrafts();
+		} catch (err) {
+			toast.error(err instanceof ApiError ? err.message : "Could not remove.");
 		} finally {
 			setApprovingDraftUid(null);
 		}
@@ -1235,7 +1293,17 @@ export default function CaseDetailPage() {
 										</TableCell>
 										<TableCell>
 											{rec.is_approved ? (
-												<Badge>Approved</Badge>
+												<div className="flex items-center gap-1">
+													<Badge>Approved</Badge>
+													<Button
+														size="sm"
+														variant="ghost"
+														disabled={approvingUid === rec.uid}
+														onClick={() => handleUnapproveRecommendation(rec)}
+													>
+														Unapprove
+													</Button>
+												</div>
 											) : (
 												<Button
 													size="sm"
@@ -1249,13 +1317,22 @@ export default function CaseDetailPage() {
 												</Button>
 											)}
 										</TableCell>
-										<TableCell>
+										<TableCell className="flex items-center gap-1">
 											<Button
 												size="sm"
 												variant="ghost"
 												onClick={() => openRecEditDialog(rec)}
 											>
 												Edit
+											</Button>
+											<Button
+												size="sm"
+												variant="ghost"
+												className="text-destructive hover:text-destructive"
+												disabled={approvingUid === rec.uid}
+												onClick={() => handleDeleteRecommendation(rec)}
+											>
+												Remove
 											</Button>
 										</TableCell>
 									</TableRow>
@@ -1635,9 +1712,19 @@ export default function CaseDetailPage() {
 												View
 											</a>
 										</TableCell>
-										<TableCell>
+										<TableCell className="flex items-center gap-1">
 											{draft.is_approved ? (
-												<Badge>Approved</Badge>
+												<>
+													<Badge>Approved</Badge>
+													<Button
+														size="sm"
+														variant="ghost"
+														disabled={approvingDraftUid === draft.uid}
+														onClick={() => handleUnapproveDraft(draft)}
+													>
+														Unapprove
+													</Button>
+												</>
 											) : (
 												<Button
 													size="sm"
@@ -1650,6 +1737,15 @@ export default function CaseDetailPage() {
 														: "Approve"}
 												</Button>
 											)}
+											<Button
+												size="sm"
+												variant="ghost"
+												className="text-destructive hover:text-destructive"
+												disabled={approvingDraftUid === draft.uid}
+												onClick={() => handleDeleteDraft(draft)}
+											>
+												Remove
+											</Button>
 										</TableCell>
 									</TableRow>
 								))}

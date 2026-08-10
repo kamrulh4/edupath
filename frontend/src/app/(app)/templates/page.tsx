@@ -51,6 +51,13 @@ export default function TemplatesPage() {
 		{ ...EMPTY_ITEM },
 	]);
 
+	const [togglingTemplateUid, setTogglingTemplateUid] = useState<string | null>(
+		null,
+	);
+	const [togglingChecklistUid, setTogglingChecklistUid] = useState<
+		string | null
+	>(null);
+
 	async function loadTemplates() {
 		const { results } = await apiFetch<FormTemplate[]>("/form-templates/");
 		setTemplates(results);
@@ -99,6 +106,43 @@ export default function TemplatesPage() {
 			);
 		} finally {
 			setCreating(false);
+		}
+	}
+
+	async function handleToggleTemplateActive(template: FormTemplate) {
+		setTogglingTemplateUid(template.uid);
+		try {
+			await apiFetch<FormTemplate>(`/form-templates/${template.uid}/`, {
+				method: "PATCH",
+				body: JSON.stringify({ is_active: !template.is_active }),
+			});
+			loadTemplates();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update template.",
+			);
+		} finally {
+			setTogglingTemplateUid(null);
+		}
+	}
+
+	async function handleToggleChecklistActive(checklist: TaskChecklistTemplate) {
+		setTogglingChecklistUid(checklist.uid);
+		try {
+			await apiFetch<TaskChecklistTemplate>(
+				`/task-checklist-templates/${checklist.uid}/`,
+				{
+					method: "PATCH",
+					body: JSON.stringify({ is_active: !checklist.is_active }),
+				},
+			);
+			loadChecklists();
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : "Could not update checklist.",
+			);
+		} finally {
+			setTogglingChecklistUid(null);
 		}
 	}
 
@@ -203,6 +247,7 @@ export default function TemplatesPage() {
 								<TableHead>Provider</TableHead>
 								<TableHead>Status</TableHead>
 								<TableHead>File</TableHead>
+								<TableHead>Actions</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -226,6 +271,16 @@ export default function TemplatesPage() {
 										>
 											View
 										</a>
+									</TableCell>
+									<TableCell>
+										<Button
+											size="sm"
+											variant="outline"
+											disabled={togglingTemplateUid === template.uid}
+											onClick={() => handleToggleTemplateActive(template)}
+										>
+											{template.is_active ? "Deactivate" : "Activate"}
+										</Button>
 									</TableCell>
 								</TableRow>
 							))}
@@ -341,6 +396,7 @@ export default function TemplatesPage() {
 									<TableHead>Name</TableHead>
 									<TableHead>Items</TableHead>
 									<TableHead>Status</TableHead>
+									<TableHead>Actions</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -354,6 +410,16 @@ export default function TemplatesPage() {
 											>
 												{checklist.is_active ? "Active" : "Inactive"}
 											</Badge>
+										</TableCell>
+										<TableCell>
+											<Button
+												size="sm"
+												variant="outline"
+												disabled={togglingChecklistUid === checklist.uid}
+												onClick={() => handleToggleChecklistActive(checklist)}
+											>
+												{checklist.is_active ? "Deactivate" : "Activate"}
+											</Button>
 										</TableCell>
 									</TableRow>
 								))}

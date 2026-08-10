@@ -19,6 +19,8 @@ const NAV_ITEMS = [
 	{ href: "/templates", label: "Templates" },
 ];
 
+const ADMIN_NAV_ITEMS = [{ href: "/audit-log", label: "Audit Log" }];
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
 	const { user, loading, logout, refreshUser } = useAuth();
 	const router = useRouter();
@@ -62,7 +64,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 					<div className="flex items-center gap-6">
 						<span className="font-semibold">EduPath AI</span>
 						<nav className="flex items-center gap-4 text-sm">
-							{NAV_ITEMS.map((item) => (
+							{[
+								...NAV_ITEMS,
+								...(user.kind === "ADMIN" ? ADMIN_NAV_ITEMS : []),
+							].map((item) => (
 								<Link
 									key={item.href}
 									href={item.href}
