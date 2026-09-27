@@ -64,6 +64,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "dj_rest_auth",
+    "drf_spectacular",
 ]
 
 
@@ -196,11 +197,18 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
     ],
-    # "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_RATES": {"anon": "300/minute", "user": "1200/minute"},
     "DEFAULT_PAGINATION_CLASS": "common.pagination.StandardResultsPagination",
     "EXCEPTION_HANDLER": "common.exceptions.custom_exception_handler",
     "PAGE_SIZE": 40,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "EduPath API",
+    "DESCRIPTION": "API for the EduPath admissions/advising platform.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 SIMPLE_JWT = {

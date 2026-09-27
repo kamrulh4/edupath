@@ -4,6 +4,8 @@ from io import BytesIO
 
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.views import APIView
 
@@ -102,6 +104,11 @@ class ApplicationPackView(APIView):
         used_names.add(candidate)
         return candidate
 
+    @extend_schema(
+        description="Bundles the approved application draft(s) and non-duplicate case "
+        "documents into a single ZIP for the adviser to hand off to the provider.",
+        responses={200: OpenApiTypes.BINARY},
+    )
     def get(self, request, uid):
         case = get_object_or_404(
             Case, uid=uid, student__organisation=request.user.organisation

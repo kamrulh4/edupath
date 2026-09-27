@@ -1,4 +1,6 @@
 from django.http import FileResponse, Http404
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
@@ -18,6 +20,14 @@ class DocumentDownloadView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        description="Streams the document's original or renamed file. `token` is the "
+        "short-lived signed download token issued by the document serializer.",
+        parameters=[
+            OpenApiParameter("token", OpenApiTypes.STR, OpenApiParameter.QUERY, required=True),
+        ],
+        responses={200: OpenApiTypes.BINARY},
+    )
     def get(self, request, uid, *args, **kwargs):
         token = request.query_params.get("token", "")
         result = verify_download_token(token)

@@ -9,6 +9,7 @@ from common.views.mixins import StandardResponseMixin
 from core.choices import UserKind
 from core.models import User
 from core.permissions import HasRole
+from core.serializers.dashboard import DashboardReportSerializer
 from courses.models import Recommendation
 from students.choices import CaseStage, DocumentStatus, TaskStatus
 from students.models import Case, CaseStageHistory, Document, Task
@@ -35,6 +36,7 @@ class DashboardReportingView(StandardResponseMixin, generics.GenericAPIView):
     that a single filtered list endpoint can't express."""
 
     permission_classes = [IsOrganisationStaff]
+    serializer_class = DashboardReportSerializer
 
     def get(self, request, *args, **kwargs):
         organisation = request.user.organisation
