@@ -45,7 +45,7 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get("DEBUG", False)
 ENABLE_SILK = os.environ.get("ENABLE_SILK", False)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()]
 
 
 # Application definition

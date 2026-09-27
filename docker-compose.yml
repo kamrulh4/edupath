@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: edupath
+      POSTGRES_USER: edupath
+      POSTGRES_PASSWORD: edupath
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edupath -d edupath"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DEBUG: "False"
+      DATABASE_URL: postgres://edupath:edupath@db:5432/edupath
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - static_files:/staticfiles
+      - media_files:/media
+
+volumes:
+  postgres_data:
+  static_files:
+  media_files:
